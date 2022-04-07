@@ -1,0 +1,105 @@
+#cloud-config
+autoinstall:
+  version: 1
+  refresh:
+    update: no
+  refresh-installer:
+    update: no
+  interactive-sections: []
+  locale: en_US.UTF-8
+  keyboard:
+    layout: us
+  apt:
+      preserve_sources_list: true
+      geoip: false
+      primary:
+        - arches: [amd64]
+          uri: "http://archive.ubuntu.com/ubuntu/"
+  package_update: true
+  package_upgrade: true
+  package_reboot_if_required: true
+  network:
+    ethernets:
+      any:
+        match:
+          name: en*
+        critical: true
+        dhcp4: true
+    version: 2
+  storage:
+    config:
+    - id: disk-internal
+      type: disk
+      match:
+        size: largest
+      #path: /dev/mmcblk0
+      #path: /dev/sda
+      name: 'internal disk'
+      ptable: gpt
+      wipe: superblock
+      preserve: false
+      grub_device: false
+    - id: partition-0
+      type: partition
+      device: disk-internal
+      size: 536870912
+      wipe: superblock
+      flag: boot
+      number: 1
+      preserve: false
+      grub_device: true
+    - id: partition-1
+      type: partition
+      device: disk-internal
+      size: 1073741824
+      wipe: superblock
+      flag: ''
+      number: 2
+      preserve: false
+    - id: partition-2
+      type: partition
+      device: disk-internal
+      size: -1
+      wipe: superblock
+      flag: ''
+      number: 3
+      preserve: false
+    # encrypted config
+    - {id: dm_crypt-0, type: dm_crypt, volume: partition-2, key: 'password', preserve: false }
+    - {id: lvm_volgroup-0, type: lvm_volgroup, name: ubuntu-vg, devices: [dm_crypt-0], preserve: false }
+    # non-encrypted config
+    #- {id: lvm_volgroup-0, type: lvm_volgroup, name: ubuntu-vg, devices: [partition-2], preserve: false }
+    # other config
+    - {id: lvm_partition-1, type: lvm_partition, name: ubuntu-lv, volgroup: lvm_volgroup-0, size: -1, preserve: false}
+    - {id: format-0, type: format, fstype: fat32, volume: partition-0, preserve: false}
+    - {id: format-1, type: format, fstype: ext4, volume: partition-1, preserve: false}
+    - {id: format-2, type: format, fstype: ext4, volume: lvm_partition-1, preserve: false}
+    - {device: format-2, path: /, type: mount, id: mount-2}
+    - {device: format-1, path: /boot, type: mount, id: mount-1}
+    - {device: format-0, path: /boot/efi, type: mount, id: mount-0}
+    swap: {size: 0}
+  identity:
+    hostname: ${HOST_NAME}
+    username: ${LOCAL_USER}
+    password: ${LOCAL_PASSWORD}
+  user-data:
+    disable_root: true
+    timezone: Europe/Sofia
+  late-commands:
+    - cp -a /cdrom/${VENDOR_DIR} /target
+    - curtin in-target --target=/target -- bash /${VENDOR_DIR}/late-commands-target.sh
+    - /usr/bin/sync
+    - /bin/echo "The system is finally up"
+    - /usr/bin/uptime -p
+    - sleep 30 && /sbin/poweroff
+  # not work with flash iso
+  #phone_home:
+  #  url: https://example.com/xubuntu-remaster/$INSTANCE_ID/
+  #  post: [ pub_key_dsa, pub_key_rsa, pub_key_ecdsa, instance_id ]
+  #  #post: all
+  #  tries: 10
+  #final_message: "xubuntu remaster final message: The system is finally up, after $UPTIME seconds"
+  #power_state:
+  #  delay: '+30'
+  #  mode: poweroff
+  #  message: Bye Bye

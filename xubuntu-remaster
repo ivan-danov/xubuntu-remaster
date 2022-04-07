@@ -1,0 +1,356 @@
+#!/bin/bash
+
+#*******************************************************************************
+#*                               xubuntu-remaster                              *
+#*-----------------------------------------------------------------------------*
+#* based on https://github.com/covertsh/ubuntu-autoinstall-generator           *
+#*                                                                             *
+#* Copyright (c) 2022 Ivan Danov                                               *
+#*                                                                             *
+#* MIT License                                                                 *
+#*                                                                             *
+#* Permission is hereby granted, free of charge, to any person obtaining a     *
+#* copy of this software and associated documentation files (the "Software"),  *
+#* to deal in the Software without restriction, including without limitation   *
+#* the rights to use, copy, modify, merge, publish, distribute, sublicense,    *
+#* and/or sell copies of the Software, and to permit persons to whom the       *
+#* Software is furnished to do so, subject to the following conditions:        *
+#*                                                                             *
+#* The above copyright notice and this permission notice shall be included     *
+#* in all copies or substantial portions of the Software.                      *
+#*                                                                             *
+#* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS     *
+#* OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, *
+#* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE *
+#* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER      *
+#* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING     *
+#* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER         *
+#* DEALINGS IN THE SOFTWARE.                                                   *
+#*******************************************************************************
+
+set -Eeuo pipefail
+
+XUBUNTU_REMASTER_VERSION=development
+
+function log() {
+        echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
+}
+function die() {
+        local msg=$1
+        local code=${2-1} # Bash parameter expansion - default exit status 1. See https://wiki.bash-hackers.org/syntax/pe#use_a_default_value
+        log "$msg"
+	if [ $code -ne 0 ]; then
+		log "💥 Error!"
+	fi
+        exit "$code"
+}
+
+
+argc=$#
+if [ ${argc} -ne 1 ]; then
+	echo "Usage:"
+	echo "	${0} <config file, see /usr/share/doc/xubuntu-remaster/examples/luks-encrypted/luks-encrypted.conf>"
+	exit 1
+fi
+CONFIG_FILE=${1}
+
+CONFIG_VARS=(
+	PROJECT_VERSION
+	OS_VER
+	BASE_ISO
+	USE_HWE_KERNEL
+	PROJECT_NAME
+	PROJECT
+	PROJECT_DESCRIPTION
+	VENDOR_NAME
+	LOGO_PNG
+	VENDOR_DIR
+	INITIAL_LUKS_PASS
+	HOST_NAME
+	LOCAL_USER
+	LOCAL_PASSWORD
+	FILESYSTEM_SQUASHFS_SCRIPT
+	USER_DATA_FILE
+	LATE_COMMANDS_SCRIPT
+	FIRST_BOOT_SCRIPT
+)
+
+# clear config vars
+for i in ${CONFIG_VARS[@]}; do
+	unset ${i}
+done
+
+source ${CONFIG_FILE}
+
+ifIsSet() {
+  [[ ${!1-x} == x ]] && return 1 || return 0
+}
+ifNotSet() {
+  [[ ${!1-x} == x ]] && return 0 || return 1
+}
+
+# check required params and arguments
+ifNotSet PROJECT_VERSION && die "💥 PROJECT_VERSION was not defined."
+ifNotSet OS_VER && die "💥 OS_VER was not defined."
+ifNotSet BASE_ISO && die "💥 BASE_ISO was not defined."
+ifNotSet USE_HWE_KERNEL && die "💥 USE_HWE_KERNEL was not defined."
+ifNotSet PROJECT_NAME && die "💥 PROJECT_NAME was not defined."
+ifNotSet PROJECT && die "💥 PROJECT was not defined."
+ifNotSet VENDOR_NAME && die "💥 VENDOR_NAME was not defined."
+ifIsSet LOGO_PNG && [[ ! -f "${LOGO_PNG}" ]] && die "💥 LOGO_PNG file '${LOGO_PNG}' could not be found."
+ifNotSet VENDOR_DIR && die "💥 VENDOR_DIR was not defined."
+ifNotSet HOST_NAME && die "💥 HOST_NAME was not defined."
+ifNotSet LOCAL_USER && die "💥 LOCAL_USER was not defined."
+ifNotSet LOCAL_PASSWORD && die "💥 LOCAL_PASSWORD was not defined."
+ifIsSet EXTRA_DIR && [[ ! -d "${EXTRA_DIR}" ]] && die "💥 EXTRA_DIR dir '${EXTRA_DIR}' could not be found."
+
+if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
+	[[ ! -f "${FILESYSTEM_SQUASHFS_SCRIPT}" ]] && die "💥 FILESYSTEM_SQUASHFS_SCRIPT file '${FILESYSTEM_SQUASHFS_SCRIPT}' could not be found."
+	[[ $EUID -ne 0 ]] && die "💥 FILESYSTEM_SQUASHFS_SCRIPT used, this script must be run as root"
+else
+	[[ $EUID -eq 0 ]] && die "💥 This script can't be run as root"
+fi
+
+ifNotSet USER_DATA_FILE && die "💥 USER_DATA_FILE file was not specified."
+[[ ! -f "${USER_DATA_FILE}" ]] && die "💥 user-data file '${USER_DATA_FILE}' could not be found."
+
+ifIsSet LATE_COMMANDS_SCRIPT && [[ ! -f "${LATE_COMMANDS_SCRIPT}" ]] && die "💥 LATE_COMMANDS_SCRIPT file '${LATE_COMMANDS_SCRIPT}' could not be found."
+ifIsSet FIRST_BOOT_SCRIPT && [[ ! -f "${FIRST_BOOT_SCRIPT}" ]] && die "💥 FIRST_BOOT_SCRIPT file '${FIRST_BOOT_SCRIPT}' could not be found."
+
+if ifNotSet GRUB_TIMEOUT; then
+	GRUB_TIMEOUT=-1 # wait indefinitely
+fi
+
+INPUT_ISO="${BASE_ISO}"
+if [ -f ~/binary/linux/${BASE_ISO} ]; then
+	INPUT_ISO="~/binary/linux/${BASE_ISO}"
+elif ifIsSet SUDO_USER; then
+	SUDO_USER_HOME_DIR=$(bash -c "cd ~$(printf %q "${SUDO_USER}") && pwd")
+	if [ -f "${SUDO_USER_HOME_DIR}/binary/linux/${BASE_ISO}" ]; then
+		INPUT_ISO="${SUDO_USER_HOME_DIR}/binary/linux/${BASE_ISO}"
+	fi
+fi
+
+[[ ! -f "${INPUT_ISO}" ]] && die "💥 Source ISO file could not be found (${INPUT_ISO})."
+
+
+function cleanup() {
+	exit_code=$?
+	trap - SIGINT SIGTERM ERR EXIT
+	if [ -n "${tmpdir+x}" ]; then
+		rm -rf "$tmpdir"
+		log "🚽 Deleted temporary working directory $tmpdir"
+	fi
+	if [ -n "${fstmpdir+x}" ]; then
+		rm -rf "$fstmpdir"
+		log "🚽 Deleted temporary working directory $fstmpdir"
+	fi
+	log "🚽 cleanup"
+	if [ $exit_code -ne 0 ]; then
+		log "💥 Error!"
+	fi
+}
+
+trap cleanup SIGINT SIGTERM ERR EXIT
+
+SCRIPT_DIR=$(dirname $(realpath ${BASH_SOURCE[0]}))
+
+OUTPUT_ISO="${SCRIPT_DIR}/${PROJECT}-${PROJECT_VERSION}-${OS_VER}-amd64.iso"
+
+log "👶 Starting up..."
+
+tmpdir=$(mktemp -d -p ${SCRIPT_DIR})
+if [[ ! "$tmpdir" || ! -d "$tmpdir" ]]; then
+        die "💥 Could not create temporary working directory."
+else
+        log "📁 Created temporary working directory $tmpdir"
+fi
+
+log "🔎 Checking for required utilities..."
+[[ ! -x "$(command -v xorriso)" ]] && die "💥 xorriso is not installed. On Ubuntu, install  the 'xorriso' package."
+[[ ! -x "$(command -v sed)" ]] && die "💥 sed is not installed. On Ubuntu, install the 'sed' package."
+[[ ! -x "$(command -v curl)" ]] && die "💥 curl is not installed. On Ubuntu, install the 'curl' package."
+[[ ! -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]] && die "💥 isolinux is not installed. On Ubuntu, install the 'isolinux' package."
+log "👍 All required utilities are installed."
+
+log "🔧 Extracting ISO image '${INPUT_ISO}'..."
+xorriso -osirrox on -indev "${INPUT_ISO}" -extract / "$tmpdir" &>/dev/null
+chmod -R u+w "$tmpdir"
+rm -rf "$tmpdir/"'[BOOT]'
+log "👍 Extracted to $tmpdir"
+
+if [ ${USE_HWE_KERNEL} -eq 1 ]; then
+        if grep -q "hwe-vmlinuz" "$tmpdir/boot/grub/grub.cfg"; then
+                log "☑️ Destination ISO will use HWE kernel."
+		if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
+                	sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/isolinux/txt.cfg"
+                	sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/isolinux/txt.cfg"
+		fi
+                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/boot/grub/grub.cfg"
+                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/boot/grub/grub.cfg"
+                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/boot/grub/loopback.cfg"
+                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/boot/grub/loopback.cfg"
+        else
+                log "⚠️ This source ISO does not support the HWE kernel. Proceeding with the regular kernel."
+        fi
+fi
+
+log "🧩 Adding autoinstall parameter to kernel command line..."
+if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
+	sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/isolinux/txt.cfg"
+fi
+sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/loopback.cfg"
+
+if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
+	sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/isolinux/txt.cfg"
+fi
+sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/boot/grub/loopback.cfg"
+
+sed -i -e 's/timeout=5/timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/boot/grub/grub.cfg"
+
+log "👍 Added parameter to UEFI and BIOS kernel command lines."
+
+log "🧩 Adding user-data and meta-data files..."
+mkdir "$tmpdir/${VENDOR_DIR}"
+cp "${USER_DATA_FILE}" "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${VENDOR_DIR}/'${VENDOR_DIR}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${LOCAL_USER}/'${LOCAL_USER}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${LOCAL_PASSWORD}/'${LOCAL_PASSWORD}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${HOST_NAME}/'${HOST_NAME}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+
+touch "$tmpdir/${VENDOR_DIR}/meta-data"
+if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
+	sed -i -e 's,---, ds=nocloud;s=/cdrom/'${VENDOR_DIR}'/  ---,g' "$tmpdir/isolinux/txt.cfg"
+fi
+sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'${VENDOR_DIR}'/  ---,g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'${VENDOR_DIR}'/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
+log "👍 Added data and configured kernel command line."
+
+sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' $tmpdir/.disk/info
+log "👍 Disk info file changed"
+
+
+# iso filesystem.squashfs re-packaging
+if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
+
+	log "🧩 Repackaging filesystem.squashfs..."
+
+	fstmpdir=$(mktemp -d -p ${SCRIPT_DIR})
+	if [[ ! "$fstmpdir" || ! -d "$fstmpdir" ]]; then
+		die "💥 Could not create temporary working directory."
+	else
+		log "📁 Created temporary working directory $fstmpdir"
+	fi
+
+	mkdir -p $(dirname "${fstmpdir}")
+	rm -rf "${fstmpdir}"
+	log "🧩 Extract filesystem.squashfs to ${fstmpdir}..."
+	unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" &>/dev/null
+	log "👍 filesystem.squashfs extracted to ${fstmpdir}..."
+
+	cp "${FILESYSTEM_SQUASHFS_SCRIPT}" "${fstmpdir}/xubuntu-filesystem-install.sh"
+	chmod 0755 "${fstmpdir}/xubuntu-filesystem-install.sh"
+
+	log "🧩 Exec custom script ${FILESYSTEM_SQUASHFS_SCRIPT}..."
+	log "🧩 See log in ${SCRIPT_DIR}/custom_script.log"
+	systemd-nspawn --quiet --notify-ready=yes --register=yes \
+		--bind-ro=/etc/resolv.conf --machine=xubuntu-remaster \
+		--directory="${fstmpdir}" /bin/bash /xubuntu-filesystem-install.sh \
+		> custom_script.log
+	log "👍 Custom script ${FILESYSTEM_SQUASHFS_SCRIPT} done"
+
+	log "🧩 Create new filesystem.squashfs from ${fstmpdir}..."
+	rm "${fstmpdir}/xubuntu-filesystem-install.sh"
+
+	[[ ! -f "${fstmpdir}/filesystem.manifest" ]] && die "💥 Error creating new filesystem.squashfs"
+
+	mv "${fstmpdir}/filesystem.manifest" "$tmpdir/casper/filesystem.manifest"
+	rm "$tmpdir/casper/filesystem.squashfs"
+	rm "$tmpdir/casper/filesystem.squashfs.gpg"
+
+	# fast, big
+	# mksquashfs "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" -nolzma -e "${fstmpdir}/boot" &>/dev/null
+
+	# slow, small
+	mksquashfs "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
+
+	printf $(du -sx --block-size=1 "${fstmpdir}" | cut -f1) > "$tmpdir/casper/filesystem.size"
+	log "👍 filesystem.squashfs repackaged"
+fi
+
+log "🧩 Adding custom files and dirs..."
+if ifIsSet LATE_COMMANDS_SCRIPT; then
+	cp ${LATE_COMMANDS_SCRIPT} "$tmpdir/${VENDOR_DIR}/late-commands-target.sh"
+	chmod 755 "$tmpdir/${VENDOR_DIR}/late-commands-target.sh"
+fi
+
+if ifIsSet FIRST_BOOT_SCRIPT; then
+	cp ${FIRST_BOOT_SCRIPT} "$tmpdir/${VENDOR_DIR}/xubuntu-remaster-first-boot"
+	chmod 755 "$tmpdir/${VENDOR_DIR}/xubuntu-remaster-first-boot"
+fi
+
+if [ ${XUBUNTU_REMASTER_VERSION} == "development" ]; then
+	# get from git
+	GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+	GIT_REV_COUNT=$(git rev-list --count ${GIT_BRANCH} 2>/dev/null)
+	GIT_REV=$(git rev-parse --verify HEAD --short 2>/dev/null || true)
+	XUBUNTU_REMASTER_VERSION="1.0.${GIT_REV_COUNT}+${GIT_REV}"
+	unset GIT_REV
+	unset GIT_REV_COUNT
+	unset GIT_BRANCH
+fi
+
+echo "#!/bin/bash" > "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+echo "" >> "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+echo "# ISO created on $(date +"%Y.%m.%d %T")" >> "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+echo "# from xubuntu-remaster ${XUBUNTU_REMASTER_VERSION}" >> "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+echo "" >> "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+for i in ${CONFIG_VARS[@]}; do
+	if ifIsSet ${i}; then
+		echo "${i}='${!i}'" >> "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+	fi
+done
+
+if ifIsSet LOGO_PNG; then
+	cp ${LOGO_PNG} "$tmpdir/${VENDOR_DIR}/logo.png"
+fi
+if ifIsSet EXTRA_DIR; then
+	shopt -s dotglob
+	cp -a "${EXTRA_DIR}"/* "$tmpdir/${VENDOR_DIR}"
+	shopt -u dotglob
+fi
+
+
+log "👷 Updating $tmpdir/md5sum.txt with hashes of modified files..."
+update_md5() {
+md5=$(md5sum "$tmpdir/$1" | cut -f1 -d ' ')
+sed -i -e 's,^.*[[:space:]] '"./$1"','"$md5"'  .'"/$1"',' "$tmpdir/md5sum.txt"
+}
+update_md5 "boot/grub/grub.cfg"
+update_md5 "boot/grub/loopback.cfg"
+update_md5 ".disk/info"
+update_md5 "casper/filesystem.squashfs"
+update_md5 "casper/filesystem.manifest"
+update_md5 "casper/filesystem.size"
+if [ ! -f "$tmpdir/casper/filesystem.squashfs.gpg" ]; then
+	sed -i '/.\/casper\/filesystem.squashfs.gpg/d' "$tmpdir/md5sum.txt"
+fi
+log "👍 Updated hashes."
+
+ver_sze=${#PROJECT_VERSION}
+pd_sze=$((32 - ${ver_sze} - 1))
+pd=${PROJECT_DESCRIPTION:0:${pd_sze}}
+ISO_LABEL="${pd} ${PROJECT_VERSION}"
+
+log "📦 Repackaging extracted files into an ISO image '${ISO_LABEL}' ..."
+xorriso -as mkisofs -r -V "${ISO_LABEL}" \
+	-J -b isolinux/isolinux.bin -c isolinux/boot.cat \
+	-no-emul-boot -boot-load-size 4 \
+	-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin -boot-info-table \
+	-input-charset utf-8 -eltorito-alt-boot -e boot/grub/efi.img \
+	-no-emul-boot -isohybrid-gpt-basdat -o "${OUTPUT_ISO}" "$tmpdir" &>/dev/null
+
+log "👍 Repackaged into '${OUTPUT_ISO}'"
+die "✅ Completed." 0

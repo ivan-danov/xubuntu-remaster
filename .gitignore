@@ -1,0 +1,10 @@
+.*.swp
+.*.kate-swp
+.AppleDouble
+.DS_Store
+*.deb
+*.iso
+output
+custom_script.log
+tmp.*
+.#tmp.*
