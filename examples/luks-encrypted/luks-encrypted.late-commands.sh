@@ -85,11 +85,11 @@ if [ -d ${ISO_VENDOR_DIR}/.ssh ]; then
 	log "Install remote certs in /root/.ssh and /home/${LOCAL_USER}/.ssh"
 	cp -a ${ISO_VENDOR_DIR}/.ssh /root/
 	chmod 700 /root/.ssh
-	chmod 600 /root/.ssh/authorized_keys
+	[[ -f /root/.ssh/authorized_keys ]] && chmod 600 /root/.ssh/authorized_keys
 
 	cp -a ${ISO_VENDOR_DIR}/.ssh /home/${LOCAL_USER}/
 	chmod 700 /home/${LOCAL_USER}/.ssh
-	chmod 600 /home/${LOCAL_USER}/.ssh/authorized_keys
+	[[ -f /home/${LOCAL_USER}/.ssh/authorized_keys ]] && chmod 600 /home/${LOCAL_USER}/.ssh/authorized_keys
 fi
 
 log "Set bash aliases for root"

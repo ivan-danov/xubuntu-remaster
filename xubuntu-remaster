@@ -103,6 +103,7 @@ ifNotSet HOST_NAME && die "💥 HOST_NAME was not defined."
 ifNotSet LOCAL_USER && die "💥 LOCAL_USER was not defined."
 ifNotSet LOCAL_PASSWORD && die "💥 LOCAL_PASSWORD was not defined."
 ifIsSet EXTRA_DIR && [[ ! -d "${EXTRA_DIR}" ]] && die "💥 EXTRA_DIR dir '${EXTRA_DIR}' could not be found."
+ifIsSet SQUASHFS_EXTRA_DIR && [[ ! -d "${SQUASHFS_EXTRA_DIR}" ]] && die "💥 SQUASHFS_EXTRA_DIR dir '${SQUASHFS_EXTRA_DIR}' could not be found."
 
 if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	[[ ! -f "${FILESYSTEM_SQUASHFS_SCRIPT}" ]] && die "💥 FILESYSTEM_SQUASHFS_SCRIPT file '${FILESYSTEM_SQUASHFS_SCRIPT}' could not be found."
@@ -215,20 +216,20 @@ log "👍 Added parameter to UEFI and BIOS kernel command lines."
 log "🧩 Adding user-data and meta-data files..."
 mkdir "$tmpdir/${VENDOR_DIR}"
 cp "${USER_DATA_FILE}" "$tmpdir/${VENDOR_DIR}/user-data"
-sed -i 's/\${VENDOR_DIR}/'${VENDOR_DIR}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
-sed -i 's/\${LOCAL_USER}/'${LOCAL_USER}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
-sed -i 's/\${LOCAL_PASSWORD}/'${LOCAL_PASSWORD}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
-sed -i 's/\${HOST_NAME}/'${HOST_NAME}'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${VENDOR_DIR}/'"${VENDOR_DIR}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${LOCAL_USER}/'"${LOCAL_USER}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${LOCAL_PASSWORD}/'"${LOCAL_PASSWORD}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${HOST_NAME}/'"${HOST_NAME}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
 
 touch "$tmpdir/${VENDOR_DIR}/meta-data"
 if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
-	sed -i -e 's,---, ds=nocloud;s=/cdrom/'${VENDOR_DIR}'/  ---,g' "$tmpdir/isolinux/txt.cfg"
+	sed -i -e 's,---, ds=nocloud;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/isolinux/txt.cfg"
 fi
-sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'${VENDOR_DIR}'/  ---,g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'${VENDOR_DIR}'/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
+sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
 log "👍 Added data and configured kernel command line."
 
-sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' $tmpdir/.disk/info
+sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' "$tmpdir/.disk/info"
 log "👍 Disk info file changed"
 
 
@@ -237,7 +238,7 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 
 	log "🧩 Repackaging filesystem.squashfs..."
 
-	fstmpdir=$(mktemp -d -p ${SCRIPT_DIR})
+	fstmpdir=$(mktemp -d -p "${SCRIPT_DIR}")
 	if [[ ! "$fstmpdir" || ! -d "$fstmpdir" ]]; then
 		die "💥 Could not create temporary working directory."
 	else
@@ -250,8 +251,15 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" &>/dev/null
 	log "👍 filesystem.squashfs extracted to ${fstmpdir}..."
 
+	log "🧩 Copy user script to ${fstmpdir}..."
 	cp "${FILESYSTEM_SQUASHFS_SCRIPT}" "${fstmpdir}/xubuntu-filesystem-install.sh"
 	chmod 0755 "${fstmpdir}/xubuntu-filesystem-install.sh"
+	log "👍 User script copied"
+	if ifIsSet SQUASHFS_EXTRA_DIR; then
+		log "🧩 Copy user data to ${fstmpdir}..."
+		cp -a "${SQUASHFS_EXTRA_DIR}" "${fstmpdir}/extra_files"
+		log "👍 User data copied"
+	fi
 
 	log "🧩 Exec custom script ${FILESYSTEM_SQUASHFS_SCRIPT}..."
 	log "🧩 See log in ${SCRIPT_DIR}/custom_script.log"
