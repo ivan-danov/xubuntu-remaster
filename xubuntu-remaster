@@ -206,10 +206,16 @@ sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/loopback.cfg"
 if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
 	sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/isolinux/txt.cfg"
 fi
-sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/boot/grub/loopback.cfg"
 
-sed -i -e 's/timeout=5/timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/boot/grub/grub.cfg"
+# 20.04
+sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/loopback.cfg"
+
+# 22.04
+sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/loopback.cfg"
+
+sed -i -e 's/^timeout=.*/timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/boot/grub/grub.cfg"
 
 log "👍 Added parameter to UEFI and BIOS kernel command lines."
 
@@ -233,10 +239,20 @@ sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ub
 log "👍 Disk info file changed"
 
 
-# iso filesystem.squashfs re-packaging
+# iso squashfs re-packaging
 if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 
-	log "🧩 Repackaging filesystem.squashfs..."
+	log "🧩 Repackaging squashfs filesystem..."
+
+	# check for known files
+	if [ -f "$tmpdir/casper/filesystem.squashfs" ]; then
+		FSNAME=filesystem
+	elif [ -f "$tmpdir/casper/ubuntu-server-minimal.squashfs" ]; then
+		FSNAME=ubuntu-server-minimal
+	else
+		die "💥 Could not detect squashfs filesystem."
+	fi
+
 
 	fstmpdir=$(mktemp -d -p "${SCRIPT_DIR}")
 	if [[ ! "$fstmpdir" || ! -d "$fstmpdir" ]]; then
@@ -248,8 +264,8 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	mkdir -p $(dirname "${fstmpdir}")
 	rm -rf "${fstmpdir}"
 	log "🧩 Extract filesystem.squashfs to ${fstmpdir}..."
-	unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" &>/dev/null
-	log "👍 filesystem.squashfs extracted to ${fstmpdir}..."
+	unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" &>/dev/null
+	log "👍 ${FSNAME}.squashfs extracted to ${fstmpdir}..."
 
 	log "🧩 Copy user script to ${fstmpdir}..."
 	cp "${FILESYSTEM_SQUASHFS_SCRIPT}" "${fstmpdir}/xubuntu-filesystem-install.sh"
@@ -269,23 +285,23 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 		> custom_script.log
 	log "👍 Custom script ${FILESYSTEM_SQUASHFS_SCRIPT} done"
 
-	log "🧩 Create new filesystem.squashfs from ${fstmpdir}..."
+	log "🧩 Create new ${FSNAME}.squashfs from ${fstmpdir}..."
 	rm "${fstmpdir}/xubuntu-filesystem-install.sh"
 
-	[[ ! -f "${fstmpdir}/filesystem.manifest" ]] && die "💥 Error creating new filesystem.squashfs"
+	[[ ! -f "${fstmpdir}/filesystem.manifest" ]] && die "💥 Error creating new ${FSNAME}.squashfs"
 
-	mv "${fstmpdir}/filesystem.manifest" "$tmpdir/casper/filesystem.manifest"
-	rm "$tmpdir/casper/filesystem.squashfs"
-	rm "$tmpdir/casper/filesystem.squashfs.gpg"
+	mv "${fstmpdir}/filesystem.manifest" "$tmpdir/casper/${FSNAME}.manifest"
+	rm "$tmpdir/casper/${FSNAME}.squashfs"
+	rm "$tmpdir/casper/${FSNAME}.squashfs.gpg"
 
 	# fast, big
-	# mksquashfs "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" -nolzma -e "${fstmpdir}/boot" &>/dev/null
+	# mksquashfs "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" -nolzma -e "${fstmpdir}/boot" &>/dev/null
 
 	# slow, small
-	mksquashfs "${fstmpdir}" "$tmpdir/casper/filesystem.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
+	mksquashfs "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
 
-	printf $(du -sx --block-size=1 "${fstmpdir}" | cut -f1) > "$tmpdir/casper/filesystem.size"
-	log "👍 filesystem.squashfs repackaged"
+	printf $(du -sx --block-size=1 "${fstmpdir}" | cut -f1) > "$tmpdir/casper/${FSNAME}.size"
+	log "👍 ${FSNAME}.squashfs repackaged"
 fi
 
 log "🧩 Adding custom files and dirs..."
@@ -339,11 +355,13 @@ sed -i -e 's,^.*[[:space:]] '"./$1"','"$md5"'  .'"/$1"',' "$tmpdir/md5sum.txt"
 update_md5 "boot/grub/grub.cfg"
 update_md5 "boot/grub/loopback.cfg"
 update_md5 ".disk/info"
-update_md5 "casper/filesystem.squashfs"
-update_md5 "casper/filesystem.manifest"
-update_md5 "casper/filesystem.size"
-if [ ! -f "$tmpdir/casper/filesystem.squashfs.gpg" ]; then
-	sed -i '/.\/casper\/filesystem.squashfs.gpg/d' "$tmpdir/md5sum.txt"
+if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
+	update_md5 "casper/${FSNAME}.squashfs"
+	update_md5 "casper/${FSNAME}.manifest"
+	update_md5 "casper/${FSNAME}.size"
+	if [ ! -f "$tmpdir/casper/${FSNAME}.squashfs.gpg" ]; then
+		sed -i '/.\/casper\/'"${FSNAME}"'.squashfs.gpg/d' "$tmpdir/md5sum.txt"
+	fi
 fi
 log "👍 Updated hashes."
 
@@ -353,12 +371,25 @@ pd=${PROJECT_DESCRIPTION:0:${pd_sze}}
 ISO_LABEL="${pd} ${PROJECT_VERSION}"
 
 log "📦 Repackaging extracted files into an ISO image '${ISO_LABEL}' ..."
+if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
+
 xorriso -as mkisofs -r -V "${ISO_LABEL}" \
 	-J -b isolinux/isolinux.bin -c isolinux/boot.cat \
 	-no-emul-boot -boot-load-size 4 \
 	-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin -boot-info-table \
 	-input-charset utf-8 -eltorito-alt-boot -e boot/grub/efi.img \
-	-no-emul-boot -isohybrid-gpt-basdat -o "${OUTPUT_ISO}" "$tmpdir" &>/dev/null
+	-isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
+	-o "${OUTPUT_ISO}" "$tmpdir" &>/dev/null
+else
+
+xorriso -as mkisofs -r -V "${ISO_LABEL}" \
+	-J \
+	-no-emul-boot -boot-load-size 4 \
+	-boot-info-table \
+	-input-charset utf-8 -eltorito-alt-boot \
+	-isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
+	-o "${OUTPUT_ISO}" "$tmpdir" &>/dev/null
+fi
 
 log "👍 Repackaged into '${OUTPUT_ISO}'"
 die "✅ Completed." 0
