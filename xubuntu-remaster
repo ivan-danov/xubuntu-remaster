@@ -215,7 +215,7 @@ sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g
 sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/grub.cfg"
 sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/loopback.cfg"
 
-sed -i -e 's/^timeout=.*/timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/^set timeout=.*/set timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/boot/grub/grub.cfg"
 
 log "👍 Added parameter to UEFI and BIOS kernel command lines."
 
