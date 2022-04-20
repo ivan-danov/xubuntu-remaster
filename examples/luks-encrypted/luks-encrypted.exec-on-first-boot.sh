@@ -30,14 +30,22 @@ TPM2_LUKS_PASS=lukspassword
 log "Set password for Grub2 MenuItem edit"
 echo ${GRUB2_PASS}|xgrub-password ${GRUB2_USER}
 
-# check for tpm2
+log "Check for tpm2"
 if [ -c /dev/tpmrm0 ]; then
 	log "TPM 2.0 found" # since v4.12-rc1
 
-	log "Set change unlock password of encrypted disk with tpm2 chip"
+	log "Remove unseal script with initial password"
+	if [ -f /etc/crypttab ]; then
+		log "Restore crypttab"
+		sed -i 's/luks,discard,keyscript=\/usr\/lib\/xubuntu-remaster-unseal/luks/g' /etc/crypttab
+	fi
+	rm -f /usr/lib/xubuntu-remaster-unseal
+	rm -f /etc/initramfs-tools/hooks/xubuntu-remaster-initramfs-tool
+
+	log "Change unlock password of encrypted disk with tpm2 chip"
 	xtpm2-password ${INITIAL_LUKS_PASS} ${TPM2_LUKS_PASS}
 else
-	log "TPM 2.0 NOT found" # since v4.12-rc1
+	log "TPM 2.0 NOT found"
 fi
 
 

@@ -227,4 +227,4 @@ clean:
 	@echo $(BEERSYM)$(PROJECT) cleaning done.
 
 luks_encrypted_iso:
-	sudo ./xubuntu-remaster examples/luks-encrypted/luks-encrypted.conf
+	./xubuntu-remaster examples/luks-encrypted/luks-encrypted.conf

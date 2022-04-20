@@ -18,8 +18,6 @@ autoinstall:
   package_update: true
   package_upgrade: true
   package_reboot_if_required: true
-  packages:
-    - openssh-server
   network:
     ethernets:
       any:
@@ -67,10 +65,10 @@ autoinstall:
       number: 3
       preserve: false
     # encrypted config
-    - {id: dm_crypt-0, type: dm_crypt, volume: partition-2, key: 'password', preserve: false }
-    - {id: lvm_volgroup-0, type: lvm_volgroup, name: ubuntu-vg, devices: [dm_crypt-0], preserve: false }
+    #- {id: dm_crypt-0, type: dm_crypt, volume: partition-2, key: 'password', preserve: false }
+    #- {id: lvm_volgroup-0, type: lvm_volgroup, name: ubuntu-vg, devices: [dm_crypt-0], preserve: false }
     # non-encrypted config
-    #- {id: lvm_volgroup-0, type: lvm_volgroup, name: ubuntu-vg, devices: [partition-2], preserve: false }
+    - {id: lvm_volgroup-0, type: lvm_volgroup, name: ubuntu-vg, devices: [partition-2], preserve: false }
     # other config
     - {id: lvm_partition-1, type: lvm_partition, name: ubuntu-lv, volgroup: lvm_volgroup-0, size: -1, preserve: false}
     - {id: format-0, type: format, fstype: fat32, volume: partition-0, preserve: false}

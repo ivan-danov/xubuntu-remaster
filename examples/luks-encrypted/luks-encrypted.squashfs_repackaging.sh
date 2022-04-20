@@ -22,7 +22,6 @@ echo "install extra packages"
 apt-get -qq install -y \
 	vim \
 	htop \
-	openssh-server \
 	net-tools \
 	tpm2-tools \
 	tpm2-initramfs-tool
