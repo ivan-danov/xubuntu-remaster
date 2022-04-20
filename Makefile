@@ -199,8 +199,7 @@ define deb_func
 	${Q}sed -i 's/^XUBUNTU_REMASTER_VERSION=development/XUBUNTU_REMASTER_VERSION="'"${PROJECT_VERSION}"'"/g' $(DEBDIR)/usr/bin/$(DEBNAME)
 	${Q}chmod 0755 $(DEBDIR)/usr/bin/$(DEBNAME)
 
-	${Q}mkdir -p $(DEBDIR)/usr/share/doc/$(DEBNAME)/examples
-	${Q}cp -a examples/luks-encrypted $(DEBDIR)/usr/share/doc/$(DEBNAME)/examples
+	${Q}cp -a examples $(DEBDIR)/usr/share/doc/$(DEBNAME)/
 
 	$(call deb_control)
 	$(call deb_end)
