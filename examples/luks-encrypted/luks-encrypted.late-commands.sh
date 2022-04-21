@@ -11,10 +11,11 @@ exec 3>&1 4>&2 >/var/log/xubuntu-remaster.log 2>&1
 
 set -Eeuo pipefail
 
-ISO_VENDOR_DIR=$(dirname $(realpath ${BASH_SOURCE[0]}))
+ISO_VENDOR_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
 
-source ${ISO_VENDOR_DIR}/xubuntu-remaster.conf
-cp ${ISO_VENDOR_DIR}/xubuntu-remaster.conf /etc/
+# shellcheck source=/dev/null
+source "${ISO_VENDOR_DIR}/xubuntu-remaster.conf"
+cp "${ISO_VENDOR_DIR}/xubuntu-remaster.conf" /etc/
 
 function log() {
         echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
@@ -25,7 +26,7 @@ ifIsSet() {
 
 log "Create service to be started on boot"
 if ifIsSet FIRST_BOOT_SCRIPT; then
-	cp ${ISO_VENDOR_DIR}/xubuntu-remaster-first-boot /usr/bin/xubuntu-remaster-first-boot
+	cp "${ISO_VENDOR_DIR}/xubuntu-remaster-first-boot" /usr/bin/xubuntu-remaster-first-boot
 	chmod 755 /usr/bin/xubuntu-remaster-first-boot
 
 	cat > /lib/systemd/system/xubuntu-remaster-first-boot.service << EOF
@@ -48,9 +49,9 @@ EOF
 	systemctl -q enable xubuntu-remaster-first-boot.service
 fi
 
-if [ -f ${ISO_VENDOR_DIR}/logo.png ]; then
+if [ -f "${ISO_VENDOR_DIR}/logo.png" ]; then
 	log "Copy logo"
-	cp ${ISO_VENDOR_DIR}/logo.png /usr/share/plymouth/ubuntu-logo.png
+	cp "${ISO_VENDOR_DIR}/logo.png" /usr/share/plymouth/ubuntu-logo.png
 fi
 
 log "Change plymouth theme"
@@ -76,20 +77,20 @@ XXX
 
 log "Create home directory /home/${LOCAL_USER}"
 # NOTE: user from identity and user-data was created after reboot!
-mkdir -p /home/${LOCAL_USER}
+mkdir -p "/home/${LOCAL_USER}"
 
 # user number
 USERN=1000
 
-if [ -d ${ISO_VENDOR_DIR}/.ssh ]; then
+if [ -d "${ISO_VENDOR_DIR}/.ssh" ]; then
 	log "Install remote certs in /root/.ssh and /home/${LOCAL_USER}/.ssh"
-	cp -a ${ISO_VENDOR_DIR}/.ssh /root/
+	cp -a "${ISO_VENDOR_DIR}/.ssh" /root/
 	chmod 700 /root/.ssh
 	[[ -f /root/.ssh/authorized_keys ]] && chmod 600 /root/.ssh/authorized_keys
 
-	cp -a ${ISO_VENDOR_DIR}/.ssh /home/${LOCAL_USER}/
-	chmod 700 /home/${LOCAL_USER}/.ssh
-	[[ -f /home/${LOCAL_USER}/.ssh/authorized_keys ]] && chmod 600 /home/${LOCAL_USER}/.ssh/authorized_keys
+	cp -a "${ISO_VENDOR_DIR}/.ssh" "/home/${LOCAL_USER}/"
+	chmod 700 "/home/${LOCAL_USER}/.ssh"
+	[[ -f "/home/${LOCAL_USER}/.ssh/authorized_keys" ]] && chmod 600 "/home/${LOCAL_USER}/.ssh/authorized_keys"
 fi
 
 log "Set bash aliases for root"
@@ -97,10 +98,10 @@ echo source /root/.bash_aliases > /root/.profile
 echo alias dir=\'ls -laF --color=auto\' > /root/.bash_aliases
 
 log "Set bash aliases for local user"
-echo source /home/${LOCAL_USER}/.bash_aliases > /home/${LOCAL_USER}/.profile
-echo alias dir=\'ls -laF --color=auto\' > /home/${LOCAL_USER}/.bash_aliases
+echo "source \"/home/${LOCAL_USER}/.bash_aliases\"" > "/home/${LOCAL_USER}/.profile"
+echo alias dir=\'ls -laF --color=auto\' > "/home/${LOCAL_USER}/.bash_aliases"
 
-chown ${USERN}.${USERN} /home/${LOCAL_USER} -R
+chown ${USERN}.${USERN} "/home/${LOCAL_USER}" -R
 
 log "Disable ssh password login"
 mkdir -p /etc/ssh/sshd_config.d/

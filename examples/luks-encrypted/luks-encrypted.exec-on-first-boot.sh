@@ -9,7 +9,7 @@ exec 3>&1 4>&2 >/var/log/xubuntu-remaster-first-boot.log 2>&1
 
 set -Eeuo pipefail
 
-SCRIPT_PATH=$(realpath ${BASH_SOURCE[0]})
+# SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 
 function log() {
         echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
@@ -17,6 +17,7 @@ function log() {
 
 CONFIG_FILE=/etc/xubuntu-remaster.conf
 if [ -f ${CONFIG_FILE} ]; then
+	# shellcheck source=/dev/null
 	source ${CONFIG_FILE}
 else
 	log "No config file ${CONFIG_FILE}"
@@ -43,7 +44,7 @@ if [ -c /dev/tpmrm0 ]; then
 	rm -f /etc/initramfs-tools/hooks/xubuntu-remaster-initramfs-tool
 
 	log "Change unlock password of encrypted disk with tpm2 chip"
-	xtpm2-password ${INITIAL_LUKS_PASS} ${TPM2_LUKS_PASS}
+	xtpm2-password "${INITIAL_LUKS_PASS}" "${TPM2_LUKS_PASS}"
 else
 	log "TPM 2.0 NOT found"
 fi

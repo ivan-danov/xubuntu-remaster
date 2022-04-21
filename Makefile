@@ -225,5 +225,12 @@ clean:
 	$(call clean_done_func)
 	@echo $(BEERSYM)$(PROJECT) cleaning done.
 
+simple_iso:
+	./xubuntu-remaster examples/simple/simple.conf
+
 luks_encrypted_iso:
 	./xubuntu-remaster examples/luks-encrypted/luks-encrypted.conf
+
+check:
+	shellcheck ./xubuntu-remaster
+	shellcheck examples/*/*.conf examples/*/*.sh

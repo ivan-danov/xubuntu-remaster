@@ -31,8 +31,8 @@ echo "download and install latest version of security packages"
 github_latest_deb() {
         curl -s "https://api.github.com/repos/${1}/releases/latest"|grep "browser_download_url.*deb"|cut -d ':' -f 2,3|tr -d \"|xargs
 }
-curl -fsSL $(github_latest_deb ivan-danov/xgrub-password) -o /xgrub-password.deb
-curl -fsSL $(github_latest_deb ivan-danov/xtpm2-password) -o /xtpm2-password.deb
+curl -fsSL "$(github_latest_deb ivan-danov/xgrub-password)" -o /xgrub-password.deb
+curl -fsSL "$(github_latest_deb ivan-danov/xtpm2-password)" -o /xtpm2-password.deb
 apt-get -qq install -y /xgrub-password.deb /xtpm2-password.deb
 rm /xgrub-password.deb
 rm /xtpm2-password.deb
