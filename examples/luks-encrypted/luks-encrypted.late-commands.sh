@@ -129,7 +129,7 @@ fi
 # No tmp, so it is the first time trying the script. Create a tmp file and try the TPM
 touch \${TMP_FILE}
 
-printf ${INITIAL_LUKS_PASS}
+printf "%s" "${INITIAL_LUKS_PASS}"
 EOF
 
 chmod 755 /usr/lib/xubuntu-remaster-unseal
