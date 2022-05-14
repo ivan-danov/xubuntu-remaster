@@ -277,7 +277,7 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 
 	mkdir -p "$(dirname "${fstmpdir}")"
 	rm -rf "${fstmpdir}"
-	log "🧩 Extract filesystem.squashfs to ${fstmpdir}..."
+	log "🧩 Extract ${FSNAME}.squashfs to ${fstmpdir}..."
 	${XSUDO} unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" &>/dev/null
 	log "👍 ${FSNAME}.squashfs extracted to ${fstmpdir}..."
 
