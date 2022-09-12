@@ -168,9 +168,10 @@ log "👶 Starting up..."
 
 tmpdir=$(mktemp -d -p ${OUTPUT_DIR})
 if [[ ! "$tmpdir" || ! -d "$tmpdir" ]]; then
-        die "💥 Could not create temporary working directory."
+	die "💥 Could not create temporary working directory."
 else
-        log "📁 Created temporary working directory $tmpdir"
+	mkdir -p "${tmpdir}/image"
+	log "📁 Created temporary working directory $tmpdir"
 fi
 
 log "🔎 Checking for required utilities..."
@@ -181,75 +182,88 @@ log "🔎 Checking for required utilities..."
 log "👍 All required utilities are installed."
 
 log "🔧 Extracting ISO image '${INPUT_ISO}'..."
-xorriso -osirrox on -indev "${INPUT_ISO}" -extract / "$tmpdir" &>/dev/null
-chmod -R u+w "$tmpdir"
-rm -rf "$tmpdir/"'[BOOT]'
-log "👍 Extracted to $tmpdir"
+xorriso -osirrox on -indev "${INPUT_ISO}" -extract / "$tmpdir/image" &>/dev/null
+chmod -R u+w "$tmpdir/image"
+rm -rf "$tmpdir/image/"'[BOOT]'
+log "👍 Extracted to $tmpdir/image"
+
+if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
+	[[ ! -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]] && die "💥 isolinux is not installed. On Ubuntu, install the 'isolinux' package."
+fi
+
+efi_start=$(fdisk -o Start,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI.System)')
+if [ -n "${efi_start}" ]; then
+	log "🔧 Extracting EFI images from image..."
+	efi_length=$(fdisk -o Sectors,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI.System)')
+	dd if="${INPUT_ISO}" bs=512 skip="${efi_start}" count="${efi_length}" of="$tmpdir/efi.img" &>/dev/null
+	dd if="${INPUT_ISO}" bs=1 count=432 of="$tmpdir/hybrid.img" &>/dev/null
+	log "👍 Extracted EFI images"
+fi
 
 if [ "${USE_HWE_KERNEL}" -eq 1 ]; then
-        if grep -q "hwe-vmlinuz" "$tmpdir/boot/grub/grub.cfg"; then
+        if grep -q "hwe-vmlinuz" "$tmpdir/image/boot/grub/grub.cfg"; then
                 log "☑️ Destination ISO will use HWE kernel."
-		if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
-                	sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/isolinux/txt.cfg"
-                	sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/isolinux/txt.cfg"
+		if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
+			sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/isolinux/txt.cfg"
+			sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/isolinux/txt.cfg"
 		fi
-                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/boot/grub/grub.cfg"
-                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/boot/grub/grub.cfg"
-                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/boot/grub/loopback.cfg"
-                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/boot/grub/loopback.cfg"
+                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/boot/grub/grub.cfg"
+                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/boot/grub/grub.cfg"
+                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/boot/grub/loopback.cfg"
+                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/boot/grub/loopback.cfg"
         else
                 log "⚠️ This source ISO does not support the HWE kernel. Proceeding with the regular kernel."
         fi
 fi
 
 log "🧩 Adding autoinstall parameter to kernel command line..."
-if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
-	sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/isolinux/txt.cfg"
+if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
+	sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/image/isolinux/txt.cfg"
 fi
-sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/boot/grub/loopback.cfg"
+sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/image/boot/grub/grub.cfg"
+sed -i -e 's/---/ autoinstall  ---/g' "$tmpdir/image/boot/grub/loopback.cfg"
 
-if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
-	sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/isolinux/txt.cfg"
+if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
+	sed -i -e 's/Install Ubuntu Server/'"${PROJECT_NAME}"'/g' "$tmpdir/image/isolinux/txt.cfg"
 fi
 
 # 20.04
-sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/loopback.cfg"
+sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/image/boot/grub/grub.cfg"
+sed -i -e 's/menuentry "Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/image/boot/grub/loopback.cfg"
 
 # 22.04-beta
-sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/loopback.cfg"
+sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/image/boot/grub/grub.cfg"
+sed -i -e 's/menuentry "Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/image/boot/grub/loopback.cfg"
 
 # 22.04
-sed -i -e 's/menuentry "Try or Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's/menuentry "Try or Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/boot/grub/loopback.cfg"
+sed -i -e 's/menuentry "Try or Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/image/boot/grub/grub.cfg"
+sed -i -e 's/menuentry "Try or Install Ubuntu Server"/menuentry "'"${PROJECT_NAME}"'"/g' "$tmpdir/image/boot/grub/loopback.cfg"
 
-sed -i -e 's/^set timeout=.*/set timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/boot/grub/grub.cfg"
+sed -i -e 's/^set timeout=.*/set timeout='"${GRUB_TIMEOUT}"'/g' "$tmpdir/image/boot/grub/grub.cfg"
 
 log "👍 Added parameter to UEFI and BIOS kernel command lines."
 
 log "🧩 Adding user-data and meta-data files..."
-mkdir "$tmpdir/${VENDOR_DIR}"
-cp "${USER_DATA_FILE}" "$tmpdir/${VENDOR_DIR}/user-data"
+mkdir "$tmpdir/image/${VENDOR_DIR}"
+cp "${USER_DATA_FILE}" "$tmpdir/image/${VENDOR_DIR}/user-data"
 # shellcheck disable=SC2016
-sed -i 's/\${VENDOR_DIR}/'"${VENDOR_DIR}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${VENDOR_DIR}/'"${VENDOR_DIR}"'/g' "$tmpdir/image/${VENDOR_DIR}/user-data"
 # shellcheck disable=SC2016
-sed -i 's/\${LOCAL_USER}/'"${LOCAL_USER}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${LOCAL_USER}/'"${LOCAL_USER}"'/g' "$tmpdir/image/${VENDOR_DIR}/user-data"
 # shellcheck disable=SC2016
-sed -i 's/\${LOCAL_PASSWORD}/'"${LOCAL_PASSWORD}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${LOCAL_PASSWORD}/'"${LOCAL_PASSWORD}"'/g' "$tmpdir/image/${VENDOR_DIR}/user-data"
 # shellcheck disable=SC2016
-sed -i 's/\${HOST_NAME}/'"${HOST_NAME}"'/g' "$tmpdir/${VENDOR_DIR}/user-data"
+sed -i 's/\${HOST_NAME}/'"${HOST_NAME}"'/g' "$tmpdir/image/${VENDOR_DIR}/user-data"
 
-touch "$tmpdir/${VENDOR_DIR}/meta-data"
-if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
-	sed -i -e 's,---, ds=nocloud;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/isolinux/txt.cfg"
+touch "$tmpdir/image/${VENDOR_DIR}/meta-data"
+if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
+	sed -i -e 's,---, ds=nocloud;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/isolinux/txt.cfg"
 fi
-sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/boot/grub/grub.cfg"
-sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/boot/grub/loopback.cfg"
+sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/boot/grub/grub.cfg"
+sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/boot/grub/loopback.cfg"
 log "👍 Added data and configured kernel command line."
 
-sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' "$tmpdir/.disk/info"
+sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' "$tmpdir/image/.disk/info"
 log "👍 Disk info file changed"
 
 
@@ -259,14 +273,13 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	log "🧩 Repackaging squashfs filesystem..."
 
 	# check for known files
-	if [ -f "$tmpdir/casper/filesystem.squashfs" ]; then
+	if [ -f "$tmpdir/image/casper/filesystem.squashfs" ]; then
 		FSNAME=filesystem
-	elif [ -f "$tmpdir/casper/ubuntu-server-minimal.squashfs" ]; then
+	elif [ -f "$tmpdir/image/casper/ubuntu-server-minimal.squashfs" ]; then
 		FSNAME=ubuntu-server-minimal
 	else
 		die "💥 Could not detect squashfs filesystem."
 	fi
-
 
 	fstmpdir=$(mktemp -d -p "${OUTPUT_DIR}")
 	if [[ ! "$fstmpdir" || ! -d "$fstmpdir" ]]; then
@@ -278,7 +291,7 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	mkdir -p "$(dirname "${fstmpdir}")"
 	rm -rf "${fstmpdir}"
 	log "🧩 Extract ${FSNAME}.squashfs to ${fstmpdir}..."
-	${XSUDO} unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" &>/dev/null
+	${XSUDO} unsquashfs -n -user-xattrs -dest "${fstmpdir}" "$tmpdir/image/casper/${FSNAME}.squashfs" &>/dev/null
 	log "👍 ${FSNAME}.squashfs extracted to ${fstmpdir}..."
 
 	log "🧩 Copy user script to ${fstmpdir}..."
@@ -304,17 +317,17 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 
 	[[ ! -f "${fstmpdir}/filesystem.manifest" ]] && die "💥 Error creating new ${FSNAME}.squashfs"
 
-	${XSUDO} mv "${fstmpdir}/filesystem.manifest" "$tmpdir/casper/${FSNAME}.manifest"
-	rm "$tmpdir/casper/${FSNAME}.squashfs"
-	rm "$tmpdir/casper/${FSNAME}.squashfs.gpg"
+	${XSUDO} mv "${fstmpdir}/filesystem.manifest" "$tmpdir/image/casper/${FSNAME}.manifest"
+	rm "$tmpdir/image/casper/${FSNAME}.squashfs"
+	rm "$tmpdir/image/casper/${FSNAME}.squashfs.gpg"
 
 	# fast, big
-	# mksquashfs "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" -nolzma -e "${fstmpdir}/boot" &>/dev/null
+	# mksquashfs "${fstmpdir}" "$tmpdir/image/casper/${FSNAME}.squashfs" -nolzma -e "${fstmpdir}/boot" &>/dev/null
 
 	# slow, small
-	${XSUDO} mksquashfs "${fstmpdir}" "$tmpdir/casper/${FSNAME}.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
+	${XSUDO} mksquashfs "${fstmpdir}" "$tmpdir/image/casper/${FSNAME}.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
 
-	printf "%s" "$(${XSUDO} du -sx --block-size=1 "${fstmpdir}" | cut -f1)" > "$tmpdir/casper/${FSNAME}.size"
+	printf "%s" "$(${XSUDO} du -sx --block-size=1 "${fstmpdir}" | cut -f1)" > "$tmpdir/image/casper/${FSNAME}.size"
 	log "👍 ${FSNAME}.squashfs repackaged"
 
 	${XSUDO} rm -rf "$fstmpdir"
@@ -323,13 +336,13 @@ fi
 
 log "🧩 Adding custom files and dirs..."
 if ifIsSet LATE_COMMANDS_SCRIPT; then
-	cp "${LATE_COMMANDS_SCRIPT}" "$tmpdir/${VENDOR_DIR}/late-commands-target.sh"
-	chmod 755 "$tmpdir/${VENDOR_DIR}/late-commands-target.sh"
+	cp "${LATE_COMMANDS_SCRIPT}" "$tmpdir/image/${VENDOR_DIR}/late-commands-target.sh"
+	chmod 755 "$tmpdir/image/${VENDOR_DIR}/late-commands-target.sh"
 fi
 
 if ifIsSet FIRST_BOOT_SCRIPT; then
-	cp "${FIRST_BOOT_SCRIPT}" "$tmpdir/${VENDOR_DIR}/xubuntu-remaster-first-boot"
-	chmod 755 "$tmpdir/${VENDOR_DIR}/xubuntu-remaster-first-boot"
+	cp "${FIRST_BOOT_SCRIPT}" "$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster-first-boot"
+	chmod 755 "$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster-first-boot"
 fi
 
 if [ "${XUBUNTU_REMASTER_VERSION}" == "development" ]; then
@@ -348,7 +361,7 @@ if [ "${XUBUNTU_REMASTER_VERSION}" == "development" ]; then
 	unset GIT_BRANCH
 	popd > /dev/null 2>&1
 fi
-cat > "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf" << EOF
+cat > "$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster.conf" << EOF
 #!/bin/bash"
 
 # ISO created on $(date +"%Y.%m.%d %T")
@@ -358,24 +371,24 @@ EOF
 
 for i in "${CONFIG_VARS[@]}"; do
 	if ifIsSet "${i}"; then
-		echo "${i}='${!i}'" >> "$tmpdir/${VENDOR_DIR}/xubuntu-remaster.conf"
+		echo "${i}='${!i}'" >> "$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster.conf"
 	fi
 done
 
 if ifIsSet LOGO_PNG; then
-	cp "${LOGO_PNG}" "$tmpdir/${VENDOR_DIR}/logo.png"
+	cp "${LOGO_PNG}" "$tmpdir/image/${VENDOR_DIR}/logo.png"
 fi
 if ifIsSet EXTRA_DIR; then
 	shopt -s dotglob
-	cp -a "${EXTRA_DIR}"/* "$tmpdir/${VENDOR_DIR}"
+	cp -a "${EXTRA_DIR}"/* "$tmpdir/image/${VENDOR_DIR}"
 	shopt -u dotglob
 fi
 
 
-log "👷 Updating $tmpdir/md5sum.txt with hashes of modified files..."
+log "👷 Updating $tmpdir/image/md5sum.txt with hashes of modified files..."
 update_md5() {
-md5=$(md5sum "$tmpdir/$1" | cut -f1 -d ' ')
-sed -i -e 's,^.*[[:space:]] '"./$1"','"$md5"'  .'"/$1"',' "$tmpdir/md5sum.txt"
+md5=$(md5sum "$tmpdir/image/$1" | cut -f1 -d ' ')
+sed -i -e 's,^.*[[:space:]] '"./$1"','"$md5"'  .'"/$1"',' "$tmpdir/image/md5sum.txt"
 }
 update_md5 "boot/grub/grub.cfg"
 update_md5 "boot/grub/loopback.cfg"
@@ -384,8 +397,8 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	update_md5 "casper/${FSNAME}.squashfs"
 	update_md5 "casper/${FSNAME}.manifest"
 	update_md5 "casper/${FSNAME}.size"
-	if [ ! -f "$tmpdir/casper/${FSNAME}.squashfs.gpg" ]; then
-		sed -i '/.\/casper\/'"${FSNAME}"'.squashfs.gpg/d' "$tmpdir/md5sum.txt"
+	if [ ! -f "$tmpdir/image/casper/${FSNAME}.squashfs.gpg" ]; then
+		sed -i '/.\/casper\/'"${FSNAME}"'.squashfs.gpg/d' "$tmpdir/image/md5sum.txt"
 	fi
 fi
 log "👍 Updated hashes."
@@ -396,24 +409,34 @@ pd=${PROJECT_DESCRIPTION:0:${pd_sze}}
 ISO_LABEL="${pd} ${PROJECT_VERSION}"
 
 log "📦 Repackaging extracted files into an ISO image '${ISO_LABEL}' ..."
-if [ -f "$tmpdir/isolinux/txt.cfg" ]; then
+if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
 
 xorriso -as mkisofs -r -V "${ISO_LABEL}" \
-	-J -b isolinux/isolinux.bin -c isolinux/boot.cat \
-	-no-emul-boot -boot-load-size 4 \
-	-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin -boot-info-table \
-	-input-charset utf-8 -eltorito-alt-boot -e boot/grub/efi.img \
-	-no-emul-boot -isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
-	-o "${OUTPUT_ISO}" "$tmpdir" &>/dev/null
-else
-
-xorriso -as mkisofs -r -V "${ISO_LABEL}" \
-	-J \
 	-no-emul-boot -boot-load-size 4 \
 	-boot-info-table \
 	-input-charset utf-8 -eltorito-alt-boot \
 	-no-emul-boot -isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
-	-o "${OUTPUT_ISO}" "$tmpdir" &>/dev/null
+	-J -b isolinux/isolinux.bin -c isolinux/boot.cat \
+	-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+	-e boot/grub/efi.img \
+	-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
+else
+
+xorriso -as mkisofs \
+	-r -V "${ISO_LABEL}" -J -joliet-long -l \
+	-iso-level 3 \
+	-partition_offset 16 \
+	--grub2-mbr "${tmpdir}/hybrid.img" \
+	--mbr-force-bootable \
+	-append_partition 2 0xEF "${tmpdir}/efi.img" \
+	-appended_part_as_gpt \
+	-c boot.catalog \
+	-b boot/grub/i386-pc/eltorito.img \
+	-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info \
+	-eltorito-alt-boot \
+	-e '--interval:appended_partition_2:all::' \
+	-no-emul-boot \
+	-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
 fi
 
 log "👍 Repackaged into '${OUTPUT_ISO}'"
