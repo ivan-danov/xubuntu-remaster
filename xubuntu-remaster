@@ -263,8 +263,10 @@ fi
 sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/boot/grub/grub.cfg"
 sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/boot/grub/loopback.cfg"
 log "👍 Added data and configured kernel command line."
-
+# for 22.04
 sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' "$tmpdir/image/.disk/info"
+# for 20.04
+sed -i 's/^Ubuntu/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu/g' "$tmpdir/image/.disk/info"
 log "👍 Disk info file changed"
 
 
