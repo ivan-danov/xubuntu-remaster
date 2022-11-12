@@ -192,10 +192,10 @@ if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
 	[[ ! -f "/usr/lib/ISOLINUX/isohdpfx.bin" ]] && die "💥 isolinux is not installed. On Ubuntu, install the 'isolinux' package."
 fi
 
-efi_start=$(fdisk -o Start,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI.System)')
+efi_start=$(fdisk -o Start,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI.System)' || true)
 if [ -n "${efi_start}" ]; then
 	log "🔧 Extracting EFI images from image..."
-	efi_length=$(fdisk -o Sectors,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI.System)')
+	efi_length=$(fdisk -o Sectors,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI.System)' || true)
 	dd if="${INPUT_ISO}" bs=512 skip="${efi_start}" count="${efi_length}" of="$tmpdir/efi.img" &>/dev/null
 	dd if="${INPUT_ISO}" bs=1 count=432 of="$tmpdir/hybrid.img" &>/dev/null
 	log "👍 Extracted EFI images"
