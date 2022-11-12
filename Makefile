@@ -49,7 +49,7 @@ DEBDESC += "remaster ubuntu server iso"
 
 DEBDIR = $(PROJECT)_deb
 
-PACKAGE_DEPS += , curl, systemd-container, squashfs-tools, xorriso
+PACKAGE_DEPS += ,curl,systemd-container,squashfs-tools,xorriso,isolinux
 
 ifneq ($(V),0)
 Q =
@@ -233,3 +233,8 @@ luks_encrypted_iso:
 check:
 	shellcheck ./xubuntu-remaster
 	shellcheck examples/*/*.conf examples/*/*.sh
+
+comma := ,
+install_dep:
+	sudo apt update
+	sudo apt install -y $(subst $(comma), ,$(strip $(PACKAGE_DEPS)))
