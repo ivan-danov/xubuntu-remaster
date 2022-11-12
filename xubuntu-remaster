@@ -124,17 +124,18 @@ if ifNotSet GRUB_TIMEOUT; then
 fi
 
 INPUT_ISO="${BASE_ISO}"
-if [ $EUID -eq 0 ] && [ -f "/root/binary/linux/${BASE_ISO}" ]; then
-	INPUT_ISO="/root/binary/linux/${BASE_ISO}"
-elif [ -f "/home/${USER}/binary/linux/${BASE_ISO}" ]; then
-	INPUT_ISO="/home/${USER}/binary/linux/${BASE_ISO}"
-elif ifIsSet SUDO_USER; then
-	SUDO_USER_HOME_DIR=$(bash -c "cd ~$(printf %q "${SUDO_USER}") && pwd")
-	if [ -f "${SUDO_USER_HOME_DIR}/binary/linux/${BASE_ISO}" ]; then
-		INPUT_ISO="${SUDO_USER_HOME_DIR}/binary/linux/${BASE_ISO}"
+if [ ! -f "${INPUT_ISO}" ]; then
+	if [ $EUID -eq 0 ] && [ -f "/root/binary/linux/${BASE_ISO}" ]; then
+		INPUT_ISO="/root/binary/linux/${BASE_ISO}"
+	elif [ -f "/home/${USER}/binary/linux/${BASE_ISO}" ]; then
+		INPUT_ISO="/home/${USER}/binary/linux/${BASE_ISO}"
+	elif ifIsSet SUDO_USER; then
+		SUDO_USER_HOME_DIR=$(bash -c "cd ~$(printf %q "${SUDO_USER}") && pwd")
+		if [ -f "${SUDO_USER_HOME_DIR}/binary/linux/${BASE_ISO}" ]; then
+			INPUT_ISO="${SUDO_USER_HOME_DIR}/binary/linux/${BASE_ISO}"
+		fi
 	fi
 fi
-
 [[ ! -f "${INPUT_ISO}" ]] && die "💥 Source ISO file could not be found (${INPUT_ISO})."
 
 
