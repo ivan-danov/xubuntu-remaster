@@ -165,7 +165,7 @@ fi
 
 OUTPUT_ISO="${OUTPUT_DIR}/${PROJECT}-${PROJECT_VERSION}-${OS_VER}-amd64.iso"
 
-log "👶 Starting up..."
+log "👶 xubuntu-remaster Starting up..."
 
 tmpdir=$(mktemp -d -p ${OUTPUT_DIR})
 if [[ ! "$tmpdir" || ! -d "$tmpdir" ]]; then
