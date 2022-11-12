@@ -312,6 +312,8 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 		--directory="${fstmpdir}" /bin/bash /xubuntu-filesystem-install.sh \
 		> custom_script.log
 	log "👍 Custom script ${FILESYSTEM_SQUASHFS_SCRIPT} done"
+	log "🧩 Remove log in ${OUTPUT_DIR}/custom_script.log"
+	rm ${OUTPUT_DIR}/custom_script.log
 
 	log "🧩 Create new ${FSNAME}.squashfs from ${fstmpdir}..."
 	${XSUDO} rm "${fstmpdir}/xubuntu-filesystem-install.sh"
