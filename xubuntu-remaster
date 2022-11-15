@@ -418,6 +418,11 @@ log "📦 Repackaging extracted files into an ISO image '${ISO_LABEL}' ..."
 if [ ! -n "${efi_start}" ]; then
 
 xorriso -as mkisofs -r -V "${ISO_LABEL}" \
+	-publisher "${VENDOR_NAME}" \
+	-p "${VENDOR_NAME}" \
+	-A "${PROJECT_DESCRIPTION}" \
+	-sysid "${PROJECT_DESCRIPTION}" \
+	-volset "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}" \
 	-no-emul-boot -boot-load-size 4 \
 	-boot-info-table \
 	-input-charset utf-8 -eltorito-alt-boot \
@@ -428,20 +433,24 @@ xorriso -as mkisofs -r -V "${ISO_LABEL}" \
 	-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
 else
 
-# if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
-# BOOTFILE=isolinux/isolinux.bin
-# BOOTCAT=isolinux/boot.cat
-# else
 if [ -f "$tmpdir/image/boot/grub/i386-pc/eltorito.img" ]; then
 BOOTFILE=boot/grub/i386-pc/eltorito.img
 else
 BOOTFILE=isolinux/isolinux.bin
 fi
 BOOTCAT=boot.catalog
-# fi
 
-xorriso -as mkisofs \
-	-r -V "${ISO_LABEL}" -J -joliet-long -l \
+# Copyright File id: -copyright file (37 chars)
+# Abstract File id: -abstract file (37 chars)
+# Bibliographic File id: -biblio file (37 chars)
+
+xorriso -as mkisofs -r -V "${ISO_LABEL}" \
+	-publisher "${VENDOR_NAME}" \
+	-p "${VENDOR_NAME}" \
+	-A "${PROJECT_DESCRIPTION}" \
+	-sysid "${PROJECT_DESCRIPTION}" \
+	-volset "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}" \
+	-J -joliet-long -l \
 	-iso-level 3 \
 	-partition_offset 16 \
 	--grub2-mbr "${tmpdir}/hybrid.img" \
