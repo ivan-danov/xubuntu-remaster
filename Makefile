@@ -234,6 +234,9 @@ check:
 	shellcheck ./xubuntu-remaster
 	shellcheck examples/*/*.conf examples/*/*.sh
 
+shell_format:
+	shfmt -l -w .
+
 comma := ,
 install_dep:
 	sudo apt update

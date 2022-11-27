@@ -34,18 +34,17 @@ XUBUNTU_REMASTER_BASE_VERSION="1.0"
 XUBUNTU_REMASTER_VERSION=development
 
 function log() {
-        echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
+	echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
 }
 function die() {
-        local msg=$1
-        local code=${2-1} # Bash parameter expansion - default exit status 1. See https://wiki.bash-hackers.org/syntax/pe#use_a_default_value
-        log "$msg"
+	local msg=$1
+	local code=${2-1} # Bash parameter expansion - default exit status 1. See https://wiki.bash-hackers.org/syntax/pe#use_a_default_value
+	log "$msg"
 	if [ "$code" -ne 0 ]; then
 		log "💥 Error!"
 	fi
-        exit "$code"
+	exit "$code"
 }
-
 
 argc=$#
 if [ ${argc} -ne 1 ]; then
@@ -138,7 +137,6 @@ if [ ! -f "${INPUT_ISO}" ]; then
 fi
 [[ ! -f "${INPUT_ISO}" ]] && die "💥 Source ISO file could not be found (${INPUT_ISO})."
 
-
 function cleanup() {
 	exit_code=$?
 	trap - SIGINT SIGTERM ERR EXIT
@@ -159,8 +157,8 @@ function cleanup() {
 trap cleanup SIGINT SIGTERM ERR EXIT
 
 SCRIPT_DIR=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
-if ifNotSet OUTPUT_DIR ; then
-OUTPUT_DIR=.
+if ifNotSet OUTPUT_DIR; then
+	OUTPUT_DIR=.
 fi
 
 OUTPUT_ISO="${OUTPUT_DIR}/${PROJECT}-${PROJECT_VERSION}-${OS_VER}-amd64.iso"
@@ -201,19 +199,19 @@ if [ -n "${efi_start}" ]; then
 fi
 
 if [ "${USE_HWE_KERNEL}" -eq 1 ]; then
-        if grep -q "hwe-vmlinuz" "$tmpdir/image/boot/grub/grub.cfg"; then
-                log "☑️ Destination ISO will use HWE kernel."
+	if grep -q "hwe-vmlinuz" "$tmpdir/image/boot/grub/grub.cfg"; then
+		log "☑️ Destination ISO will use HWE kernel."
 		if [ -f "$tmpdir/image/isolinux/txt.cfg" ]; then
 			sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/isolinux/txt.cfg"
 			sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/isolinux/txt.cfg"
 		fi
-                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/boot/grub/grub.cfg"
-                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/boot/grub/grub.cfg"
-                sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/boot/grub/loopback.cfg"
-                sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/boot/grub/loopback.cfg"
-        else
-                log "⚠️ This source ISO does not support the HWE kernel. Proceeding with the regular kernel."
-        fi
+		sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/boot/grub/grub.cfg"
+		sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/boot/grub/grub.cfg"
+		sed -i -e 's|/casper/vmlinuz|/casper/hwe-vmlinuz|g' "$tmpdir/image/boot/grub/loopback.cfg"
+		sed -i -e 's|/casper/initrd|/casper/hwe-initrd|g' "$tmpdir/image/boot/grub/loopback.cfg"
+	else
+		log "⚠️ This source ISO does not support the HWE kernel. Proceeding with the regular kernel."
+	fi
 fi
 
 log "🧩 Adding autoinstall parameter to kernel command line..."
@@ -268,7 +266,6 @@ sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ub
 sed -i 's/^Ubuntu/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu/g' "$tmpdir/image/.disk/info"
 log "👍 Disk info file changed"
 
-
 # iso squashfs re-packaging
 if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 
@@ -312,7 +309,7 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	${XSUDO} systemd-nspawn --quiet --notify-ready=yes --register=yes \
 		--bind-ro=/etc/resolv.conf --hostname=xubuntu-remaster \
 		--directory="${fstmpdir}" /bin/bash /xubuntu-filesystem-install.sh \
-		> custom_script.log
+		>custom_script.log
 	log "👍 Custom script ${FILESYSTEM_SQUASHFS_SCRIPT} done"
 	log "🧩 Remove log in ${OUTPUT_DIR}/custom_script.log"
 	rm ${OUTPUT_DIR}/custom_script.log
@@ -332,7 +329,7 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	# slow, small
 	${XSUDO} mksquashfs "${fstmpdir}" "$tmpdir/image/casper/${FSNAME}.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
 
-	printf "%s" "$(${XSUDO} du -sx --block-size=1 "${fstmpdir}" | cut -f1)" > "$tmpdir/image/casper/${FSNAME}.size"
+	printf "%s" "$(${XSUDO} du -sx --block-size=1 "${fstmpdir}" | cut -f1)" >"$tmpdir/image/casper/${FSNAME}.size"
 	log "👍 ${FSNAME}.squashfs repackaged"
 
 	${XSUDO} rm -rf "$fstmpdir"
@@ -352,7 +349,7 @@ fi
 
 if [ "${XUBUNTU_REMASTER_VERSION}" == "development" ]; then
 	# get from git
-	pushd "${SCRIPT_DIR}" > /dev/null 2>&1
+	pushd "${SCRIPT_DIR}" >/dev/null 2>&1
 	GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
 	if [ -n "${GIT_BRANCH}" ]; then
 		GIT_REV_COUNT=$(git rev-list --count "${GIT_BRANCH}" 2>/dev/null)
@@ -364,9 +361,9 @@ if [ "${XUBUNTU_REMASTER_VERSION}" == "development" ]; then
 	unset GIT_REV
 	unset GIT_REV_COUNT
 	unset GIT_BRANCH
-	popd > /dev/null 2>&1
+	popd >/dev/null 2>&1
 fi
-cat > "$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster.conf" << EOF
+cat >"$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster.conf" <<EOF
 #!/bin/bash"
 
 # ISO created on $(date +"%Y.%m.%d %T")
@@ -376,7 +373,7 @@ EOF
 
 for i in "${CONFIG_VARS[@]}"; do
 	if ifIsSet "${i}"; then
-		echo "${i}='${!i}'" >> "$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster.conf"
+		echo "${i}='${!i}'" >>"$tmpdir/image/${VENDOR_DIR}/xubuntu-remaster.conf"
 	fi
 done
 
@@ -389,11 +386,10 @@ if ifIsSet EXTRA_DIR; then
 	shopt -u dotglob
 fi
 
-
 log "👷 Updating $tmpdir/image/md5sum.txt with hashes of modified files..."
 update_md5() {
-md5=$(md5sum "$tmpdir/image/$1" | cut -f1 -d ' ')
-sed -i -e 's,^.*[[:space:]] '"./$1"','"$md5"'  .'"/$1"',' "$tmpdir/image/md5sum.txt"
+	md5=$(md5sum "$tmpdir/image/$1" | cut -f1 -d ' ')
+	sed -i -e 's,^.*[[:space:]] '"./$1"','"$md5"'  .'"/$1"',' "$tmpdir/image/md5sum.txt"
 }
 update_md5 "boot/grub/grub.cfg"
 update_md5 "boot/grub/loopback.cfg"
@@ -417,53 +413,53 @@ log "📦 Repackaging extracted files into an ISO image '${ISO_LABEL}' ..."
 
 if [ ! -n "${efi_start}" ]; then
 
-xorriso -as mkisofs -r -V "${ISO_LABEL}" \
-	-publisher "${VENDOR_NAME}" \
-	-p "${VENDOR_NAME}" \
-	-A "${PROJECT_DESCRIPTION}" \
-	-sysid "${PROJECT_DESCRIPTION}" \
-	-volset "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}" \
-	-no-emul-boot -boot-load-size 4 \
-	-boot-info-table \
-	-input-charset utf-8 -eltorito-alt-boot \
-	-no-emul-boot -isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
-	-J -b isolinux/isolinux.bin -c isolinux/boot.cat \
-	-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
-	-e boot/grub/efi.img \
-	-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
+	xorriso -as mkisofs -r -V "${ISO_LABEL}" \
+		-publisher "${VENDOR_NAME}" \
+		-p "${VENDOR_NAME}" \
+		-A "${PROJECT_DESCRIPTION}" \
+		-sysid "${PROJECT_DESCRIPTION}" \
+		-volset "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}" \
+		-no-emul-boot -boot-load-size 4 \
+		-boot-info-table \
+		-input-charset utf-8 -eltorito-alt-boot \
+		-no-emul-boot -isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
+		-J -b isolinux/isolinux.bin -c isolinux/boot.cat \
+		-isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+		-e boot/grub/efi.img \
+		-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
 else
 
-if [ -f "$tmpdir/image/boot/grub/i386-pc/eltorito.img" ]; then
-BOOTFILE=boot/grub/i386-pc/eltorito.img
-else
-BOOTFILE=isolinux/isolinux.bin
-fi
-BOOTCAT=boot.catalog
+	if [ -f "$tmpdir/image/boot/grub/i386-pc/eltorito.img" ]; then
+		BOOTFILE=boot/grub/i386-pc/eltorito.img
+	else
+		BOOTFILE=isolinux/isolinux.bin
+	fi
+	BOOTCAT=boot.catalog
 
-# Copyright File id: -copyright file (37 chars)
-# Abstract File id: -abstract file (37 chars)
-# Bibliographic File id: -biblio file (37 chars)
+	# Copyright File id: -copyright file (37 chars)
+	# Abstract File id: -abstract file (37 chars)
+	# Bibliographic File id: -biblio file (37 chars)
 
-xorriso -as mkisofs -r -V "${ISO_LABEL}" \
-	-publisher "${VENDOR_NAME}" \
-	-p "${VENDOR_NAME}" \
-	-A "${PROJECT_DESCRIPTION}" \
-	-sysid "${PROJECT_DESCRIPTION}" \
-	-volset "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}" \
-	-J -joliet-long -l \
-	-iso-level 3 \
-	-partition_offset 16 \
-	--grub2-mbr "${tmpdir}/hybrid.img" \
-	--mbr-force-bootable \
-	-append_partition 2 0xEF "${tmpdir}/efi.img" \
-	-appended_part_as_gpt \
-	-c ${BOOTCAT} \
-	-b ${BOOTFILE} \
-	-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info \
-	-eltorito-alt-boot \
-	-e '--interval:appended_partition_2:all::' \
-	-no-emul-boot \
-	-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
+	xorriso -as mkisofs -r -V "${ISO_LABEL}" \
+		-publisher "${VENDOR_NAME}" \
+		-p "${VENDOR_NAME}" \
+		-A "${PROJECT_DESCRIPTION}" \
+		-sysid "${PROJECT_DESCRIPTION}" \
+		-volset "${PROJECT_DESCRIPTION} ${PROJECT_VERSION}" \
+		-J -joliet-long -l \
+		-iso-level 3 \
+		-partition_offset 16 \
+		--grub2-mbr "${tmpdir}/hybrid.img" \
+		--mbr-force-bootable \
+		-append_partition 2 0xEF "${tmpdir}/efi.img" \
+		-appended_part_as_gpt \
+		-c ${BOOTCAT} \
+		-b ${BOOTFILE} \
+		-no-emul-boot -boot-load-size 4 -boot-info-table --grub2-boot-info \
+		-eltorito-alt-boot \
+		-e '--interval:appended_partition_2:all::' \
+		-no-emul-boot \
+		-o "${OUTPUT_ISO}" "$tmpdir/image" &>/dev/null
 fi
 
 log "👍 Repackaged into '${OUTPUT_ISO}'"

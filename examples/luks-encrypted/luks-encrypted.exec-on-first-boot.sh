@@ -12,7 +12,7 @@ set -Eeuo pipefail
 # SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
 
 function log() {
-        echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
+	echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
 }
 
 CONFIG_FILE=/etc/xubuntu-remaster.conf
@@ -29,7 +29,7 @@ GRUB2_PASS=grubpassword
 TPM2_LUKS_PASS=lukspassword
 
 log "Set password for Grub2 MenuItem edit"
-echo ${GRUB2_PASS}|xgrub-password ${GRUB2_USER}
+echo ${GRUB2_PASS} | xgrub-password ${GRUB2_USER}
 
 log "Check for tpm2"
 if [ -c /dev/tpmrm0 ]; then
@@ -48,7 +48,6 @@ if [ -c /dev/tpmrm0 ]; then
 else
 	log "TPM 2.0 NOT found"
 fi
-
 
 # script footer begin (Do not touch footer!)
 

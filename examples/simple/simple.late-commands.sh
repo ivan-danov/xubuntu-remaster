@@ -18,7 +18,7 @@ source "${ISO_VENDOR_DIR}/xubuntu-remaster.conf"
 cp "${ISO_VENDOR_DIR}/xubuntu-remaster.conf" /etc/
 
 function log() {
-        echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
+	echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
 }
 ifIsSet() {
 	[[ ${!1-x} == x ]] && return 1 || return 0
@@ -30,7 +30,7 @@ if [ -f "${ISO_VENDOR_DIR}/logo.png" ]; then
 fi
 
 log "Change plymouth theme"
-cat > /usr/share/plymouth/themes/ubuntu-text/ubuntu-text.plymouth << XXX
+cat >/usr/share/plymouth/themes/ubuntu-text/ubuntu-text.plymouth <<XXX
 [Plymouth Theme]
 Name=Ubuntu Text
 Description=Text mode theme based on ubuntu-logo theme
@@ -46,7 +46,6 @@ blue=0x988592
 XXX
 
 ## ---- Script header end (Do not touch header!)
-
 
 # example customization
 
@@ -69,26 +68,22 @@ if [ -d "${ISO_VENDOR_DIR}/.ssh" ]; then
 fi
 
 log "Set bash aliases for root"
-echo source /root/.bash_aliases > /root/.profile
-echo alias dir=\'ls -laF --color=auto\' > /root/.bash_aliases
+echo source /root/.bash_aliases >/root/.profile
+echo alias dir=\'ls -laF --color=auto\' >/root/.bash_aliases
 
 log "Set bash aliases for local user"
-echo "source \"/home/${LOCAL_USER}/.bash_aliases\"" > "/home/${LOCAL_USER}/.profile"
-echo alias dir=\'ls -laF --color=auto\' > "/home/${LOCAL_USER}/.bash_aliases"
+echo "source \"/home/${LOCAL_USER}/.bash_aliases\"" >"/home/${LOCAL_USER}/.profile"
+echo alias dir=\'ls -laF --color=auto\' >"/home/${LOCAL_USER}/.bash_aliases"
 
 chown ${USERN}.${USERN} "/home/${LOCAL_USER}" -R
 
 log "Disable ssh password login"
 mkdir -p /etc/ssh/sshd_config.d/
-cat > /etc/ssh/sshd_config.d/xubuntu-remaster.conf << XXX
+cat >/etc/ssh/sshd_config.d/xubuntu-remaster.conf <<XXX
 PermitRootLogin yes
 PasswordAuthentication no
 
 XXX
-
-
-
-
 
 ## ---- Script footer begin (Do not touch footer!)
 
