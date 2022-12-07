@@ -411,7 +411,7 @@ ISO_LABEL="${pd} ${PROJECT_VERSION}"
 
 log "📦 Repackaging extracted files into an ISO image '${ISO_LABEL}' ..."
 
-if [ ! -n "${efi_start}" ]; then
+if [ -z "${efi_start}" ]; then
 
 	xorriso -as mkisofs -r -V "${ISO_LABEL}" \
 		-publisher "${VENDOR_NAME}" \
