@@ -380,6 +380,34 @@ done
 if ifIsSet LOGO_PNG; then
 	cp "${LOGO_PNG}" "$tmpdir/image/${VENDOR_DIR}/logo.png"
 	cp "${LOGO_PNG}" "$tmpdir/image/boot/grub/logo.png"
+
+	mv "$tmpdir/image/boot/grub/grub.cfg" "$tmpdir/image/boot/grub/grub.cfg.org"
+	cat > "$tmpdir/image/boot/grub/grub.cfg" << EOF
+function load_video {
+  if [ x\$feature_all_video_module = xy ]; then
+    insmod all_video
+  else
+    insmod efi_gop
+    insmod efi_uga
+    insmod ieee1275_fb
+    insmod vbe
+    insmod vga
+    insmod video_bochs
+    insmod video_cirrus
+  fi
+}
+set gfxmode=auto
+load_video
+insmod gfxterm
+terminal_output gfxterm
+
+insmod png
+background_image /boot/grub/logo.png
+
+EOF
+
+	cat "$tmpdir/image/boot/grub/grub.cfg.org" >> "$tmpdir/image/boot/grub/grub.cfg"
+	rm "$tmpdir/image/boot/grub/grub.cfg.org"
 fi
 if ifIsSet EXTRA_DIR; then
 	shopt -s dotglob
