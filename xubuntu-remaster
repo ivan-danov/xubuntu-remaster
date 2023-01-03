@@ -379,6 +379,7 @@ done
 
 if ifIsSet LOGO_PNG; then
 	cp "${LOGO_PNG}" "$tmpdir/image/${VENDOR_DIR}/logo.png"
+	cp "${LOGO_PNG}" "$tmpdir/image/boot/grub/logo.png"
 fi
 if ifIsSet EXTRA_DIR; then
 	shopt -s dotglob
