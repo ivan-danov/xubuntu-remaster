@@ -142,9 +142,9 @@ EOF
 chmod 755 /etc/initramfs-tools/hooks/xubuntu-remaster-initramfs-tool
 
 log "Change /etc/crypttab"
-# if [ -f /etc/crypttab ]; then
-sed -i 's/luks/luks,discard,keyscript=\/usr\/lib\/xubuntu-remaster-unseal/g' /etc/crypttab
-# fi
+if [ -f /etc/crypttab ]; then
+	sed -i 's/luks/luks,discard,keyscript=\/usr\/lib\/xubuntu-remaster-unseal/g' /etc/crypttab
+fi
 
 log "Update initramfs"
 update-initramfs -u

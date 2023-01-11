@@ -8,3 +8,4 @@ output
 custom_script.log
 tmp.*
 .#tmp.*
+examples/*/squashfs_extra_dir/apt_proxy.sh

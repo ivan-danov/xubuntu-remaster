@@ -80,6 +80,7 @@ autoinstall:
     swap: {size: 0}
   identity:
     hostname: ${HOST_NAME}
+    realname: ${LOCAL_USER}
     username: ${LOCAL_USER}
     password: ${LOCAL_PASSWORD}
   user-data:
@@ -88,18 +89,4 @@ autoinstall:
   late-commands:
     - cp -a /cdrom/${VENDOR_DIR} /target
     - curtin in-target --target=/target -- bash /${VENDOR_DIR}/late-commands-target.sh
-    - /usr/bin/sync
-    - /bin/echo "The system is finally up"
-    - /usr/bin/uptime -p
-    - sleep 30 && /sbin/poweroff
-  # not work with flash iso
-  #phone_home:
-  #  url: https://example.com/xubuntu-remaster/$INSTANCE_ID/
-  #  post: [ pub_key_dsa, pub_key_rsa, pub_key_ecdsa, instance_id ]
-  #  #post: all
-  #  tries: 10
-  #final_message: "xubuntu remaster final message: The system is finally up, after $UPTIME seconds"
-  #power_state:
-  #  delay: '+30'
-  #  mode: poweroff
-  #  message: Bye Bye
+  shutdown: poweroff

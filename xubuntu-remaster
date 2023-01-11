@@ -191,7 +191,7 @@ fi
 
 efi_start=$(fdisk -o Start,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI)' || true)
 if [ -n "${efi_start}" ]; then
-	log "🔧 Extracting EFI images from image..."
+	log "🔧 Extracting EFI images from ISO image..."
 	efi_length=$(fdisk -o Sectors,Type -l "${INPUT_ISO}" | grep -oP '\d+(?=\s+EFI)' || true)
 	dd if="${INPUT_ISO}" bs=512 skip="${efi_start}" count="${efi_length}" of="$tmpdir/efi.img" &>/dev/null
 	dd if="${INPUT_ISO}" bs=1 count=432 of="$tmpdir/hybrid.img" &>/dev/null
@@ -260,10 +260,15 @@ fi
 sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/boot/grub/grub.cfg"
 sed -i -e 's,---, ds=nocloud\\\;s=/cdrom/'"${VENDOR_DIR}"'/  ---,g' "$tmpdir/image/boot/grub/loopback.cfg"
 log "👍 Added data and configured kernel command line."
-# for 22.04
-sed -i 's/^Ubuntu-Server/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu-Server/g' "$tmpdir/image/.disk/info"
-# for 20.04
-sed -i 's/^Ubuntu/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu/g' "$tmpdir/image/.disk/info"
+if [ "$(grep -c 'Ubuntu-Server' "$tmpdir/image/.disk/info")" -ne 0 ]; then
+	# for 22.04
+	# NOTE: must start with ubuntu-server
+	# first word is live session user name
+	sed -i 's/^Ubuntu-Server/Ubuntu-Server '"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"'/g' "$tmpdir/image/.disk/info"
+else
+	# for 20.04
+	sed -i 's/^Ubuntu/'"${PROJECT_DESCRIPTION}"' '"${PROJECT_VERSION}"' on Ubuntu/g' "$tmpdir/image/.disk/info"
+fi
 log "👍 Disk info file changed"
 
 # iso squashfs re-packaging
@@ -315,19 +320,42 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	rm ${OUTPUT_DIR}/custom_script.log
 
 	log "🧩 Create new ${FSNAME}.squashfs from ${fstmpdir}..."
-	${XSUDO} rm "${fstmpdir}/xubuntu-filesystem-install.sh"
+	${XSUDO} rm -f "${fstmpdir}/xubuntu-filesystem-install.sh"
 
 	[[ ! -f "${fstmpdir}/filesystem.manifest" ]] && die "💥 Error creating new ${FSNAME}.squashfs"
 
 	${XSUDO} mv "${fstmpdir}/filesystem.manifest" "$tmpdir/image/casper/${FSNAME}.manifest"
-	rm "$tmpdir/image/casper/${FSNAME}.squashfs"
-	rm "$tmpdir/image/casper/${FSNAME}.squashfs.gpg"
+	rm -f "$tmpdir/image/casper/${FSNAME}.squashfs"
+	rm -f "$tmpdir/image/casper/${FSNAME}.squashfs.gpg"
 
 	# fast, big
 	# mksquashfs "${fstmpdir}" "$tmpdir/image/casper/${FSNAME}.squashfs" -nolzma -e "${fstmpdir}/boot" &>/dev/null
 
-	# slow, small
-	${XSUDO} mksquashfs "${fstmpdir}" "$tmpdir/image/casper/${FSNAME}.squashfs" -comp xz -e "${fstmpdir}/boot" &>/dev/null
+	# fast, big: -nolzma
+	# slow, small: -comp xz
+	${XSUDO} mksquashfs "${fstmpdir}" \
+		"$tmpdir/image/casper/${FSNAME}.squashfs" \
+		-noappend                 \
+		-comp xz                  \
+		-wildcards                \
+		-e "boot/*"               \
+		-e "boot/.*"              \
+		-e "proc/*"               \
+		-e "proc/.*"              \
+		-e "run/*"                \
+		-e "run/.*"               \
+		-e "tmp/*"                \
+		-e "tmp/.*"               \
+		-e "var/crash/*"          \
+		-e "var/crash/.*"         \
+		-e "swapfile"             \
+		-e "root/.bash_history"   \
+		-e "root/.cache"          \
+		-e "root/.wget-hsts"      \
+		-e "home/*/.bash_history" \
+		-e "home/*/.cache"        \
+		-e "home/*/.wget-hsts"    \
+		&>/dev/null
 
 	printf "%s" "$(${XSUDO} du -sx --block-size=1 "${fstmpdir}" | cut -f1)" >"$tmpdir/image/casper/${FSNAME}.size"
 	log "👍 ${FSNAME}.squashfs repackaged"
