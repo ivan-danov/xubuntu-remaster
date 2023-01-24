@@ -1,0 +1,171 @@
+#!/bin/bash
+
+#*******************************************************************************
+#*                               xubuntu-remaster                              *
+#*-----------------------------------------------------------------------------*
+#* based on https://github.com/covertsh/ubuntu-autoinstall-generator           *
+#*                                                                             *
+#* Copyright (c) 2022 Ivan Danov                                               *
+#*                                                                             *
+#* MIT License                                                                 *
+#*                                                                             *
+#* Permission is hereby granted, free of charge, to any person obtaining a     *
+#* copy of this software and associated documentation files (the "Software"),  *
+#* to deal in the Software without restriction, including without limitation   *
+#* the rights to use, copy, modify, merge, publish, distribute, sublicense,    *
+#* and/or sell copies of the Software, and to permit persons to whom the       *
+#* Software is furnished to do so, subject to the following conditions:        *
+#*                                                                             *
+#* The above copyright notice and this permission notice shall be included     *
+#* in all copies or substantial portions of the Software.                      *
+#*                                                                             *
+#* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS     *
+#* OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, *
+#* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE *
+#* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER      *
+#* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING     *
+#* FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER         *
+#* DEALINGS IN THE SOFTWARE.                                                   *
+#*******************************************************************************
+
+set -Eeuo pipefail
+
+XUBUNTU_REMASTER_BASE_VERSION="1.0"
+XUBUNTU_REMASTER_VERSION=development
+
+SCRIPT_SELF="$(realpath "${BASH_SOURCE[0]}")"
+# shellcheck disable=SC2034 # appears unused
+SCRIPT_DIR=$(dirname "${SCRIPT_SELF}")
+SCRIPT_FILE=$(basename "${SCRIPT_SELF}")
+SCRIPT_NAME=$(basename -s .bash "$(basename -s .sh "${SCRIPT_FILE}")")
+
+function log() {
+	echo >&2 -e "[$(date +"%Y-%m-%d %H:%M:%S")] ${1-}"
+}
+function die() {
+	local msg=$1
+	local code=${2-1} # Bash parameter expansion - default exit status 1. See https://wiki.bash-hackers.org/syntax/pe#use_a_default_value
+	log "$msg"
+	if [ "$code" -ne 0 ]; then
+		log "💥 Error!"
+	fi
+	exit "$code"
+}
+
+usage()
+{
+	die "Usage: $0 <iso file>" 1
+}
+
+if [ "${XUBUNTU_REMASTER_VERSION}" == "development" ]; then
+	# get from git
+	pushd "${SCRIPT_DIR}" >/dev/null 2>&1
+	GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+	if [ -n "${GIT_BRANCH}" ]; then
+		GIT_REV_COUNT=$(git rev-list --count "${GIT_BRANCH}" 2>/dev/null)
+		GIT_REV=$(git rev-parse --verify HEAD --short 2>/dev/null || true)
+		XUBUNTU_REMASTER_VERSION="${XUBUNTU_REMASTER_BASE_VERSION}.${GIT_REV_COUNT}+${GIT_REV}"
+	else
+		XUBUNTU_REMASTER_VERSION="${XUBUNTU_REMASTER_BASE_VERSION}.${XUBUNTU_REMASTER_VERSION}"
+	fi
+	unset GIT_REV
+	unset GIT_REV_COUNT
+	unset GIT_BRANCH
+	popd >/dev/null 2>&1
+fi
+
+log "👶 ${SCRIPT_NAME} ${XUBUNTU_REMASTER_VERSION} Starting up..."
+
+argc=$#
+if [ ${argc} -ne 1 ]; then
+	usage
+fi
+if [ ! -f "$1" ]; then
+	usage
+fi
+
+log "🔎 Checking for required utilities..."
+[[ ! -x "$(command -v qemu-img)" ]] && die "💥 qemu-img is not installed. On Ubuntu, install  the 'qemu-utils' package."
+[[ ! -x "$(command -v qemu-system-x86_64)" ]] && die "💥 qemu-system-x86_64 is not installed. On Ubuntu, install  the 'qemu-system-x86' package."
+[[ ! -f /usr/share/ovmf/OVMF.fd ]] && die "💥 /usr/share/ovmf/OVMF.fd is not installed. On Ubuntu, install  the 'ovmf' package."
+[[ ! -x "$(command -v swtpm)" ]] && die "💥 swtpm is not installed. On Ubuntu, install  the 'swtpm' package."
+log "👍 All required utilities are installed."
+
+function cleanup() {
+	exit_code=$?
+	trap - SIGINT SIGTERM ERR EXIT
+	if [ -d "${TPMDIR}" ]; then
+		rm -rf "$TPMDIR"
+		log "🚽 Deleted temporary working directory $TPMDIR"
+	fi
+	if [ -f "${DISK_FILE}" ]; then
+		rm -f "${DISK_FILE}"
+		log "🚽 Deleted temporary disk file $DISK_FILE"
+	fi
+
+	log "🚽 cleanup"
+	if [ $exit_code -ne 0 ]; then
+		log "💥 Error!"
+	fi
+}
+
+trap cleanup SIGINT SIGTERM ERR EXIT
+
+TPMDIR=$(mktemp -d /tmp/tmp.XXXXXXXXXX)
+if [ ! -d "${TPMDIR}" ]; then
+	mkdir "${TPMDIR}"
+fi
+
+log "🔧 Create empty temporary disk"
+DISK_FORMAT=vmdk
+DISK_FILE="test.${DISK_FORMAT}"
+rm -f "${DISK_FILE}"
+qemu-img create -f ${DISK_FORMAT} "${DISK_FILE}" 11G
+
+# -device qxl-vga,vgamem_mb=64,ram_size_mb=256,vram_size_mb=128,max_outputs=2 \
+# -display gtk,gl=on
+
+QEMU_MACHINE="-cpu host -smp 4 -m 4096 -enable-kvm -bios /usr/share/ovmf/OVMF.fd"
+QEMU_TPM="-chardev socket,id=chrtpm,path=${TPMDIR}/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
+
+QEMU_VIDEO="-vga virtio -device virtio-vga"
+# QEMU_VIDEO="-vga qxl -device qxl"
+
+QEMU_NET="-nic none"
+# QEMU_NET="-netdev user,id=net0 -device e1000,netdev=net0"
+# QEMU_NET="-netdev user,id=net0,hostfwd=tcp:127.0.0.1:43211-:43210 -device e1000,netdev=net0 "
+
+log "🔧 Install iso file to temporary disk"
+swtpm socket --tpmstate dir="${TPMDIR}" \
+	--ctrl type=unixio,path="${TPMDIR}/swtpm-sock" \
+	--tpm2 \
+	--daemon \
+	--log level=20
+
+# shellcheck disable=SC2086
+qemu-system-x86_64 \
+	${QEMU_MACHINE} \
+	${QEMU_VIDEO} \
+	${QEMU_NET} \
+	-drive format=${DISK_FORMAT},file="${DISK_FILE}",if=virtio \
+	-display sdl,gl=on \
+	${QEMU_TPM} \
+	-drive file="$1",media=cdrom,readonly=on -boot c
+
+log "🔧 Start from temporary disk"
+swtpm socket --tpmstate dir="${TPMDIR}" \
+	--ctrl type=unixio,path="${TPMDIR}/swtpm-sock" \
+	--tpm2 \
+	--daemon \
+	--log level=20
+
+# shellcheck disable=SC2086
+qemu-system-x86_64 \
+	${QEMU_MACHINE} \
+	${QEMU_VIDEO} \
+	${QEMU_NET} \
+	-drive format=${DISK_FORMAT},file="${DISK_FILE}",if=virtio \
+	-display sdl,gl=on \
+	${QEMU_TPM}
+
+die "✅ Completed." 0

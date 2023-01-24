@@ -194,9 +194,14 @@ define deb_func
 	$(call deb_begin)
 	$(call deb_changelog)
 	${Q}mkdir -p $(DEBDIR)/usr/bin
+
 	${Q}cp xubuntu-remaster $(DEBDIR)/usr/bin/$(DEBNAME)
 	${Q}sed -i 's/^XUBUNTU_REMASTER_VERSION=development/XUBUNTU_REMASTER_VERSION="'"${PROJECT_VERSION}"'"/g' $(DEBDIR)/usr/bin/$(DEBNAME)
 	${Q}chmod 0755 $(DEBDIR)/usr/bin/$(DEBNAME)
+
+	${Q}cp xubuntu-remaster-test-iso $(DEBDIR)/usr/bin/$(DEBNAME)-test-iso
+	${Q}sed -i 's/^XUBUNTU_REMASTER_VERSION=development/XUBUNTU_REMASTER_VERSION="'"${PROJECT_VERSION}"'"/g' $(DEBDIR)/usr/bin/$(DEBNAME)-test-iso
+	${Q}chmod 0755 $(DEBDIR)/usr/bin/$(DEBNAME)-test-iso
 
 	${Q}cp -a examples $(DEBDIR)/usr/share/doc/$(DEBNAME)/
 
