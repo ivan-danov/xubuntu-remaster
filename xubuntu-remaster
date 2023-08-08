@@ -136,7 +136,6 @@ ifNotSet HOST_NAME && die "💥 HOST_NAME was not defined."
 ifNotSet LOCAL_USER && die "💥 LOCAL_USER was not defined."
 ifNotSet LOCAL_PASSWORD && die "💥 LOCAL_PASSWORD was not defined."
 ifIsSet EXTRA_DIR && [[ ! -d "${EXTRA_DIR}" ]] && die "💥 EXTRA_DIR dir '${EXTRA_DIR}' could not be found."
-ifIsSet SQUASHFS_EXTRA_DIR && [[ ! -d "${SQUASHFS_EXTRA_DIR}" ]] && die "💥 SQUASHFS_EXTRA_DIR dir '${SQUASHFS_EXTRA_DIR}' could not be found."
 
 XSUDO=
 if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
@@ -199,6 +198,8 @@ if [ ${argc} -gt 1 ]; then
 	echo "${OUTPUT_ISO}"
 	exit 0
 fi
+
+ifIsSet SQUASHFS_EXTRA_DIR && [[ ! -d "${SQUASHFS_EXTRA_DIR}" ]] && die "💥 SQUASHFS_EXTRA_DIR dir '${SQUASHFS_EXTRA_DIR}' could not be found."
 
 tmpdir=$(mktemp -d -p ${OUTPUT_DIR})
 if [[ ! "$tmpdir" || ! -d "$tmpdir" ]]; then
