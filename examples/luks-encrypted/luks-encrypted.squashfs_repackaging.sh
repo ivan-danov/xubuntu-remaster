@@ -30,7 +30,7 @@ if [ -f /extra_files/apt_proxy.sh ]; then
 	if ifIsSet APT_PROXY; then
 		# NOTEL curl is not installed!
 		# APT_PROXY_CHECH=$(curl --connect-timeout 2 --max-time 5 -s "${APT_PROXY}" -o /dev/null -w "%{http_code}" || true)
-		APT_PROXY_CHECH=$(wget --connect-timeout=2 --timeout=3 --tries=1 -S -q --max-redirect=0 "${APT_PROXY}" 2>&1|awk 'NR==1{print $2}' || true)
+		APT_PROXY_CHECH=$(wget --connect-timeout=2 --timeout=3 --tries=1 -S -q --max-redirect=0 "${APT_PROXY}" 2>&1 | awk 'NR==1{print $2}' || true)
 		if [ "${APT_PROXY_CHECH}" -ne 406 ]; then
 			log "apt proxy ${APT_PROXY} not detected!"
 		else

@@ -52,8 +52,7 @@ function die() {
 	exit "$code"
 }
 
-usage()
-{
+usage() {
 	die "Usage: $0 <iso file>" 1
 }
 

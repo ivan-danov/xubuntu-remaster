@@ -77,7 +77,7 @@ if [ ${argc} -lt 1 ]; then
 fi
 show_messages=1
 if [ ${argc} -gt 1 ]; then
-        show_messages=0
+	show_messages=0
 fi
 
 if [ "${show_messages}" -ne 0 ]; then
@@ -212,6 +212,12 @@ log "🔎 Checking for required utilities..."
 [[ ! -x "$(command -v xorriso)" ]] && die "💥 xorriso is not installed. On Ubuntu, install  the 'xorriso' package."
 [[ ! -x "$(command -v sed)" ]] && die "💥 sed is not installed. On Ubuntu, install the 'sed' package."
 [[ ! -x "$(command -v curl)" ]] && die "💥 curl is not installed. On Ubuntu, install the 'curl' package."
+
+if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
+	[[ ! -x "$(command -v systemd-nspawn)" ]] && die "💥 systemd-nspawn is not installed. On Ubuntu, install the 'systemd-container' package."
+	[[ ! -x "$(command -v unsquashfs)" ]] && die "💥 unsquashfs is not installed. On Ubuntu, install the 'squashfs-tools' package."
+fi
+
 log "👍 All required utilities are installed."
 
 log "🔧 Extracting ISO image '${INPUT_ISO}'..."
@@ -370,26 +376,26 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 	# slow, small: -comp xz
 	${XSUDO} mksquashfs "${fstmpdir}" \
 		"$tmpdir/image/casper/${FSNAME}.squashfs" \
-		-noappend                 \
-		-comp xz                  \
-		-wildcards                \
-		-e "boot/*"               \
-		-e "boot/.*"              \
-		-e "proc/*"               \
-		-e "proc/.*"              \
-		-e "run/*"                \
-		-e "run/.*"               \
-		-e "tmp/*"                \
-		-e "tmp/.*"               \
-		-e "var/crash/*"          \
-		-e "var/crash/.*"         \
-		-e "swapfile"             \
-		-e "root/.bash_history"   \
-		-e "root/.cache"          \
-		-e "root/.wget-hsts"      \
+		-noappend \
+		-comp xz \
+		-wildcards \
+		-e "boot/*" \
+		-e "boot/.*" \
+		-e "proc/*" \
+		-e "proc/.*" \
+		-e "run/*" \
+		-e "run/.*" \
+		-e "tmp/*" \
+		-e "tmp/.*" \
+		-e "var/crash/*" \
+		-e "var/crash/.*" \
+		-e "swapfile" \
+		-e "root/.bash_history" \
+		-e "root/.cache" \
+		-e "root/.wget-hsts" \
 		-e "home/*/.bash_history" \
-		-e "home/*/.cache"        \
-		-e "home/*/.wget-hsts"    \
+		-e "home/*/.cache" \
+		-e "home/*/.wget-hsts" \
 		&>/dev/null
 
 	printf "%s" "$(${XSUDO} du -sx --block-size=1 "${fstmpdir}" | cut -f1)" >"$tmpdir/image/casper/${FSNAME}.size"
@@ -429,7 +435,7 @@ if ifIsSet LOGO_PNG; then
 	cp "${LOGO_PNG}" "$tmpdir/image/boot/grub/logo.png"
 
 	mv "$tmpdir/image/boot/grub/grub.cfg" "$tmpdir/image/boot/grub/grub.cfg.org"
-	cat > "$tmpdir/image/boot/grub/grub.cfg" << EOF
+	cat >"$tmpdir/image/boot/grub/grub.cfg" <<EOF
 function load_video {
   if [ x\$feature_all_video_module = xy ]; then
     insmod all_video
@@ -453,7 +459,7 @@ background_image /boot/grub/logo.png
 
 EOF
 
-	cat "$tmpdir/image/boot/grub/grub.cfg.org" >> "$tmpdir/image/boot/grub/grub.cfg"
+	cat "$tmpdir/image/boot/grub/grub.cfg.org" >>"$tmpdir/image/boot/grub/grub.cfg"
 	rm "$tmpdir/image/boot/grub/grub.cfg.org"
 fi
 if ifIsSet EXTRA_DIR; then
