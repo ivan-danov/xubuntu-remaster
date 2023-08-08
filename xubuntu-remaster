@@ -69,14 +69,21 @@ if [ "${XUBUNTU_REMASTER_VERSION}" == "development" ]; then
 	popd >/dev/null 2>&1
 fi
 
-log "👶 ${SCRIPT_NAME} ${XUBUNTU_REMASTER_VERSION} Starting up..."
-
 argc=$#
-if [ ${argc} -ne 1 ]; then
+if [ ${argc} -lt 1 ]; then
 	echo "Usage:"
-	echo "	${0} <config file, see /usr/share/doc/xubuntu-remaster/examples/luks-encrypted/luks-encrypted.conf>"
+	echo "	${0} <config file, see /usr/share/doc/xubuntu-remaster/examples/luks-encrypted/luks-encrypted.conf> [showisoname]"
 	exit 1
 fi
+show_messages=1
+if [ ${argc} -gt 1 ]; then
+        show_messages=0
+fi
+
+if [ "${show_messages}" -ne 0 ]; then
+	log "👶 ${SCRIPT_NAME} ${XUBUNTU_REMASTER_VERSION} Starting up..."
+fi
+
 CONFIG_FILE=${1}
 
 CONFIG_VARS=(
@@ -165,7 +172,7 @@ fi
 function cleanup() {
 	exit_code=$?
 	trap - SIGINT SIGTERM ERR EXIT
-	if [ -d "${tmpdir}" ]; then
+	if ifIsSet tmpdir && [ -d "${tmpdir}" ]; then
 		rm -rf "$tmpdir"
 		log "🚽 Deleted temporary working directory $tmpdir"
 	fi
@@ -173,9 +180,11 @@ function cleanup() {
 		${XSUDO} rm -rf "$fstmpdir"
 		log "🚽 Deleted temporary working directory $fstmpdir"
 	fi
-	log "🚽 cleanup"
-	if [ $exit_code -ne 0 ]; then
-		log "💥 Error!"
+	if [ "${show_messages}" -ne 0 ]; then
+		log "🚽 cleanup"
+		if [ $exit_code -ne 0 ]; then
+			log "💥 Error!"
+		fi
 	fi
 }
 
@@ -186,6 +195,10 @@ if ifNotSet OUTPUT_DIR; then
 fi
 
 OUTPUT_ISO="${OUTPUT_DIR}/${PROJECT}-${PROJECT_VERSION}-${OS_VER}-amd64.iso"
+if [ ${argc} -gt 1 ]; then
+	echo "${OUTPUT_ISO}"
+	exit 0
+fi
 
 tmpdir=$(mktemp -d -p ${OUTPUT_DIR})
 if [[ ! "$tmpdir" || ! -d "$tmpdir" ]]; then
@@ -327,7 +340,7 @@ if ifIsSet FILESYSTEM_SQUASHFS_SCRIPT; then
 
 	if ifIsSet SQUASHFS_EXTRA_DIR; then
 		log "🧩 Copy user data to ${fstmpdir}..."
-		${XSUDO} cp -a "${SQUASHFS_EXTRA_DIR}" "${fstmpdir}/extra_files"
+		${XSUDO} cp -aL "${SQUASHFS_EXTRA_DIR}" "${fstmpdir}/extra_files"
 		log "👍 User data copied"
 	fi
 
