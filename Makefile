@@ -203,6 +203,10 @@ define deb_func
 	${Q}sed -i 's/^XUBUNTU_REMASTER_VERSION=development/XUBUNTU_REMASTER_VERSION="'"${PROJECT_VERSION}"'"/g' $(DEBDIR)/usr/bin/$(DEBNAME)-test-iso
 	${Q}chmod 0755 $(DEBDIR)/usr/bin/$(DEBNAME)-test-iso
 
+	${Q}cp xubuntu-remaster-iso-to-img $(DEBDIR)/usr/bin/$(DEBNAME)-iso-to-img
+	${Q}sed -i 's/^XUBUNTU_REMASTER_VERSION=development/XUBUNTU_REMASTER_VERSION="'"${PROJECT_VERSION}"'"/g' $(DEBDIR)/usr/bin/$(DEBNAME)-iso-to-img
+	${Q}chmod 0755 $(DEBDIR)/usr/bin/$(DEBNAME)-iso-to-img
+
 	${Q}cp -a examples $(DEBDIR)/usr/share/doc/$(DEBNAME)/
 
 	$(call deb_control)
@@ -236,7 +240,7 @@ luks_encrypted_iso:
 	./xubuntu-remaster examples/luks-encrypted/luks-encrypted.conf
 
 check:
-	shellcheck ./xubuntu-remaster
+	shellcheck ./xubuntu-remaster*
 	shellcheck examples/*/*.conf examples/*/*.sh
 
 shell_format:

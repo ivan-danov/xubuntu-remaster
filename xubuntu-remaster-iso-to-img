@@ -87,84 +87,46 @@ log "🔎 Checking for required utilities..."
 [[ ! -x "$(command -v qemu-img)" ]] && die "💥 qemu-img is not installed. On Ubuntu, install  the 'qemu-utils' package."
 [[ ! -x "$(command -v qemu-system-x86_64)" ]] && die "💥 qemu-system-x86_64 is not installed. On Ubuntu, install  the 'qemu-system-x86' package."
 [[ ! -f /usr/share/ovmf/OVMF.fd ]] && die "💥 /usr/share/ovmf/OVMF.fd is not installed. On Ubuntu, install  the 'ovmf' package."
-[[ ! -x "$(command -v swtpm)" ]] && die "💥 swtpm is not installed. On Ubuntu, install  the 'swtpm' package."
 log "👍 All required utilities are installed."
 
 function cleanup() {
 	exit_code=$?
 	trap - SIGINT SIGTERM ERR EXIT
-	if [ -d "${TPMDIR}" ]; then
-		rm -rf "$TPMDIR"
-		log "🚽 Deleted temporary working directory $TPMDIR"
-	fi
-	if [ -f "${DISK_FILE}" ]; then
-		rm -f "${DISK_FILE}"
-		log "🚽 Deleted temporary disk file $DISK_FILE"
-	fi
 
 	log "🚽 cleanup"
 	if [ $exit_code -ne 0 ]; then
 		log "💥 Error!"
+		if [ -f "${DISK_FILE}" ]; then
+			rm -f "${DISK_FILE}"
+			log "🚽 Deleted temporary disk file $DISK_FILE"
+		fi
 	fi
 }
 
 trap cleanup SIGINT SIGTERM ERR EXIT
 
-TPMDIR=$(mktemp -d /tmp/tmp.XXXXXXXXXX)
-if [ ! -d "${TPMDIR}" ]; then
-	mkdir "${TPMDIR}"
-fi
-
 log "🔧 Create empty temporary disk"
-DISK_FORMAT=vmdk
-DISK_FILE="test.${DISK_FORMAT}"
+DISK_FORMAT=raw
+DISK_FILE="${1%.*}.${DISK_FORMAT}.img"
 rm -f "${DISK_FILE}"
 qemu-img create -f ${DISK_FORMAT} "${DISK_FILE}" 11G
 
-# -device qxl-vga,vgamem_mb=64,ram_size_mb=256,vram_size_mb=128,max_outputs=2 \
-# -display gtk,gl=on
-
+# QEMU_MACHINE="-cpu host -smp $(nproc) -m 4096 -enable-kvm -bios /usr/share/ovmf/OVMF.fd"
 QEMU_MACHINE="-cpu host -smp 4 -m 4096 -enable-kvm -bios /usr/share/ovmf/OVMF.fd"
-QEMU_TPM="-chardev socket,id=chrtpm,path=${TPMDIR}/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm -device tpm-tis,tpmdev=tpm0"
 
 QEMU_VIDEO="-vga virtio -device virtio-vga"
-# QEMU_VIDEO="-vga qxl -device qxl"
 
 # QEMU_NET="-nic none"
 QEMU_NET="-netdev user,id=net0 -device e1000,netdev=net0"
 # QEMU_NET="-netdev user,id=net0,hostfwd=tcp:127.0.0.1:43211-:43210 -device e1000,netdev=net0 "
 
-log "🔧 Install iso file to temporary disk"
-swtpm socket --tpmstate dir="${TPMDIR}" \
-	--ctrl type=unixio,path="${TPMDIR}/swtpm-sock" \
-	--tpm2 \
-	--daemon \
-	--log level=20
-
 # shellcheck disable=SC2086
 qemu-system-x86_64 \
 	${QEMU_MACHINE} \
 	${QEMU_VIDEO} \
+	-display vnc=127.0.0.1:99 \
 	${QEMU_NET} \
 	-drive format=${DISK_FORMAT},file="${DISK_FILE}",if=virtio \
-	-display sdl,gl=on \
-	${QEMU_TPM} \
 	-drive file="$1",media=cdrom,readonly=on -boot c
-
-log "🔧 Start from temporary disk"
-swtpm socket --tpmstate dir="${TPMDIR}" \
-	--ctrl type=unixio,path="${TPMDIR}/swtpm-sock" \
-	--tpm2 \
-	--daemon \
-	--log level=20
-
-# shellcheck disable=SC2086
-qemu-system-x86_64 \
-	${QEMU_MACHINE} \
-	${QEMU_VIDEO} \
-	${QEMU_NET} \
-	-drive format=${DISK_FORMAT},file="${DISK_FILE}",if=virtio \
-	-display sdl,gl=on \
-	${QEMU_TPM}
 
 die "✅ Completed." 0
