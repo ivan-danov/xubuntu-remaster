@@ -465,7 +465,7 @@ EOF
 fi
 if ifIsSet EXTRA_DIR; then
 	shopt -s dotglob
-	cp -a "${EXTRA_DIR}"/* "$tmpdir/image/${VENDOR_DIR}"
+	cp -aL "${EXTRA_DIR}"/* "$tmpdir/image/${VENDOR_DIR}"
 	shopt -u dotglob
 fi
 
